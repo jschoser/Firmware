@@ -48,7 +48,6 @@
  */
 #include "vtol_att_control_main.h"
 #include <systemlib/mavlink_log.h>
-#include <matrix/matrix/math.hpp>
 #include <uORB/PublicationQueued.hpp>
 
 using namespace matrix;
@@ -393,9 +392,7 @@ VtolAttitudeControl::Run()
 
 				// reinitialize the setpoint while not armed to make sure no value from the last mode or flight is still kept
 				if (!_v_control_mode.flag_armed) {
-					Quatf().copyTo(_mc_virtual_att_sp.q_d);
 					Vector3f().copyTo(_mc_virtual_att_sp.thrust_body);
-					Quatf().copyTo(_v_att_sp.q_d);
 					Vector3f().copyTo(_v_att_sp.thrust_body);
 				}
 
@@ -414,9 +411,7 @@ VtolAttitudeControl::Run()
 			if (mc_att_sp_updated) {
 				// reinitialize the setpoint while not armed to make sure no value from the last mode or flight is still kept
 				if (!_v_control_mode.flag_armed) {
-					Quatf().copyTo(_mc_virtual_att_sp.q_d);
 					Vector3f().copyTo(_mc_virtual_att_sp.thrust_body);
-					Quatf().copyTo(_v_att_sp.q_d);
 					Vector3f().copyTo(_v_att_sp.thrust_body);
 				}
 			}
@@ -483,6 +478,14 @@ VtolAttitudeControl::custom_command(int argc, char *argv[])
 }
 
 int
+VtolAttitudeControl::print_status()
+{
+	PX4_INFO("Running");
+	perf_print_counter(_loop_perf);
+	return PX4_OK;
+}
+
+int
 VtolAttitudeControl::print_usage(const char *reason)
 {
 	if (reason) {
@@ -496,22 +499,10 @@ fw_att_control is the fixed wing attitude controller.
 )DESCR_STR");
 
 	PRINT_MODULE_USAGE_COMMAND("start");
-
 	PRINT_MODULE_USAGE_NAME("vtol_att_control", "controller");
-
 	PRINT_MODULE_USAGE_DEFAULT_COMMANDS();
 
 	return 0;
-}
-
-int
-VtolAttitudeControl::print_status()
-{
-	PX4_INFO("Running");
-
-	perf_print_counter(_loop_perf);
-
-	return PX4_OK;
 }
 
 int vtol_att_control_main(int argc, char *argv[])

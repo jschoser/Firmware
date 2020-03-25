@@ -19,6 +19,9 @@ px4_add_board(
 	DRIVERS
 		adc
 		barometer/bmp280
+		dshot
+		volz
+
 		gps
 		imu/mpu6000
 		magnetometer
@@ -43,6 +46,7 @@ px4_add_board(
 		mc_att_control
 		mc_pos_control
 		navigator
+		battery_status
 		sensors
 
 	SYSTEMCMDS

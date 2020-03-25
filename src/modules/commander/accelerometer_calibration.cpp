@@ -127,9 +127,9 @@
 #include "calibration_routines.h"
 #include "commander_helper.h"
 
-#include <px4_defines.h>
-#include <px4_posix.h>
-#include <px4_time.h>
+#include <px4_platform_common/defines.h>
+#include <px4_platform_common/posix.h>
+#include <px4_platform_common/time.h>
 #include <unistd.h>
 #include <stdio.h>
 #include <poll.h>
@@ -643,8 +643,7 @@ calibrate_return read_accelerometer_avg(int sensor_correction_sub, int (&subs)[m
 	}
 
 	unsigned counts[max_accel_sens] = { 0 };
-	float accel_sum[max_accel_sens][3];
-	memset(accel_sum, 0, sizeof(accel_sum));
+	float accel_sum[max_accel_sens][3] {};
 
 	unsigned errcount = 0;
 	struct sensor_correction_s sensor_correction; /**< sensor thermal corrections */

@@ -33,11 +33,11 @@
 
 #include <stdint.h>
 
-#include <px4_defines.h>
-#include <px4_module.h>
-#include <px4_tasks.h>
-#include <px4_getopt.h>
-#include <px4_posix.h>
+#include <px4_platform_common/defines.h>
+#include <px4_platform_common/module.h>
+#include <px4_platform_common/tasks.h>
+#include <px4_platform_common/getopt.h>
+#include <px4_platform_common/posix.h>
 #include <errno.h>
 
 #include <cmath>	// NAN
@@ -46,7 +46,7 @@
 #include <lib/mathlib/mathlib.h>
 #include <lib/cdev/CDev.hpp>
 #include <perf/perf_counter.h>
-#include <px4_module_params.h>
+#include <px4_platform_common/module_params.h>
 #include <uORB/Subscription.hpp>
 #include <uORB/topics/actuator_controls.h>
 #include <uORB/topics/actuator_outputs.h>
@@ -496,7 +496,14 @@ void TAP_ESC::cycle()
 			if (test_motor_updated) {
 				struct test_motor_s test_motor;
 				orb_copy(ORB_ID(test_motor), _test_motor_sub, &test_motor);
-				_outputs.output[test_motor.motor_number] = RPMSTOPPED + ((RPMMAX - RPMSTOPPED) * test_motor.value);
+
+				if (test_motor.action == test_motor_s::ACTION_STOP) {
+					_outputs.output[test_motor.motor_number] = RPMSTOPPED;
+
+				} else {
+					_outputs.output[test_motor.motor_number] = RPMSTOPPED + ((RPMMAX - RPMSTOPPED) * test_motor.value);
+				}
+
 				PX4_INFO("setting motor %i to %.1lf", test_motor.motor_number,
 					 (double)_outputs.output[test_motor.motor_number]);
 			}
@@ -563,7 +570,6 @@ void TAP_ESC::cycle()
 				if (feed_back_data.channelID < esc_status_s::CONNECTED_ESC_MAX) {
 					_esc_feedback.esc[feed_back_data.channelID].esc_rpm = feed_back_data.speed;
 					_esc_feedback.esc[feed_back_data.channelID].esc_state = feed_back_data.ESCStatus;
-					_esc_feedback.esc[feed_back_data.channelID].esc_vendor = esc_status_s::ESC_VENDOR_TAP;
 					_esc_feedback.esc_connectiontype = esc_status_s::ESC_CONNECTION_TYPE_SERIAL;
 					_esc_feedback.counter++;
 					_esc_feedback.esc_count = num_outputs;
@@ -772,9 +778,7 @@ tap_esc start -d /dev/ttyS2 -n <1-8>
 	return PX4_OK;
 }
 
-extern "C" __EXPORT int tap_esc_main(int argc, char *argv[]);
-
-int tap_esc_main(int argc, char *argv[])
+extern "C" __EXPORT int tap_esc_main(int argc, char *argv[])
 {
 	return TAP_ESC::main(argc, argv);
 }

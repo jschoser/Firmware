@@ -42,7 +42,7 @@
 /****************************************************************************************************
  * Included Files
  ****************************************************************************************************/
-#include <px4_config.h>
+#include <px4_platform_common/px4_config.h>
 #include <nuttx/compiler.h>
 #include <stdint.h>
 
@@ -520,6 +520,8 @@ __BEGIN_DECLS
 
 #define BOARD_HAS_NOISY_FXOS8700_MAG 1 // Disable internal MAG
 
+#define BOARD_NUM_IO_TIMERS 3
+
 /************************************************************************************
  * Public data
  ************************************************************************************/
@@ -662,7 +664,7 @@ void fmuk66_automount_event(bool inserted);
 
 void fmuk66_timer_initialize(void);
 
-#include <drivers/boards/common/board_common.h>
+#include <px4_platform_common/board_common.h>
 
 #endif /* __ASSEMBLY__ */
 

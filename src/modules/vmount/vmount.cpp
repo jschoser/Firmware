@@ -52,8 +52,8 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <systemlib/err.h>
-#include <px4_defines.h>
-#include <px4_tasks.h>
+#include <px4_platform_common/defines.h>
+#include <px4_platform_common/tasks.h>
 
 #include "input_mavlink.h"
 #include "input_rc.h"
@@ -64,8 +64,8 @@
 #include <uORB/Subscription.hpp>
 #include <uORB/topics/parameter_update.h>
 
-#include <px4_config.h>
-#include <px4_module.h>
+#include <px4_platform_common/px4_config.h>
+#include <px4_platform_common/module.h>
 
 using namespace vmount;
 
@@ -156,11 +156,9 @@ extern "C" __EXPORT int vmount_main(int argc, char *argv[]);
 static int vmount_thread_main(int argc, char *argv[])
 {
 	ParameterHandles param_handles;
-	Parameters params;
+	Parameters params {};
 	OutputConfig output_config;
 	ThreadData thread_data;
-	memset(&params, 0, sizeof(params));
-
 
 	InputTest *test_input = nullptr;
 

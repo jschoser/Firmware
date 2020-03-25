@@ -285,10 +285,11 @@ CollisionPrevention::_addDistanceSensorData(distance_sensor_s &distance_sensor, 
 void
 CollisionPrevention::_adaptSetpointDirection(Vector2f &setpoint_dir, int &setpoint_index, float vehicle_yaw_angle_rad)
 {
-	const float col_prev_d = _param_mpc_col_prev_d.get();
-	const int guidance_bins = floor(_param_mpc_col_prev_cng.get() / INTERNAL_MAP_INCREMENT_DEG);
+	const float col_prev_d = _param_cp_dist.get();
+	const int guidance_bins = floor(_param_cp_guide_ang.get() / INTERNAL_MAP_INCREMENT_DEG);
 	const int sp_index_original = setpoint_index;
 	float best_cost = 9999.f;
+	int new_sp_index = setpoint_index;
 
 	for (int i = sp_index_original - guidance_bins; i <= sp_index_original + guidance_bins; i++) {
 
@@ -314,12 +315,16 @@ CollisionPrevention::_adaptSetpointDirection(Vector2f &setpoint_dir, int &setpoi
 
 		if (bin_cost < best_cost && _obstacle_map_body_frame.distances[bin] != UINT16_MAX) {
 			best_cost = bin_cost;
-
-			float angle = math::radians((float)bin * INTERNAL_MAP_INCREMENT_DEG + _obstacle_map_body_frame.angle_offset);
-			angle = wrap_2pi(vehicle_yaw_angle_rad + angle);
-			setpoint_dir = {cosf(angle), sinf(angle)};
-			setpoint_index = bin;
+			new_sp_index = bin;
 		}
+	}
+
+	//only change setpoint direction if it was moved to a different bin
+	if (new_sp_index != setpoint_index) {
+		float angle = math::radians((float)new_sp_index * INTERNAL_MAP_INCREMENT_DEG + _obstacle_map_body_frame.angle_offset);
+		angle = wrap_2pi(vehicle_yaw_angle_rad + angle);
+		setpoint_dir = {cosf(angle), sinf(angle)};
+		setpoint_index = new_sp_index;
 	}
 }
 
@@ -376,8 +381,9 @@ CollisionPrevention::_calculateConstrainedSetpoint(Vector2f &setpoint, const Vec
 	_updateObstacleMap();
 
 	// read parameters
-	const float col_prev_d = _param_mpc_col_prev_d.get();
-	const float col_prev_dly = _param_mpc_col_prev_dly.get();
+	const float col_prev_d = _param_cp_dist.get();
+	const float col_prev_dly = _param_cp_delay.get();
+	const bool move_no_data = _param_cp_go_nodata.get() > 0;
 	const float xy_p = _param_mpc_xy_p.get();
 	const float max_jerk = _param_mpc_jerk_max.get();
 	const float max_accel = _param_mpc_acc_hor.get();
@@ -400,7 +406,7 @@ CollisionPrevention::_calculateConstrainedSetpoint(Vector2f &setpoint, const Vec
 							       _obstacle_map_body_frame.angle_offset);
 			int sp_index = floor(sp_angle_with_offset_deg / INTERNAL_MAP_INCREMENT_DEG);
 
-			// change setpoint direction slightly (max by _param_mpc_col_prev_cng degrees) to help guide through narrow gaps
+			// change setpoint direction slightly (max by _param_cp_guide_ang degrees) to help guide through narrow gaps
 			_adaptSetpointDirection(setpoint_dir, sp_index, vehicle_yaw_angle_rad);
 
 			// limit speed for safe flight
@@ -438,7 +444,7 @@ CollisionPrevention::_calculateConstrainedSetpoint(Vector2f &setpoint, const Vec
 						const float stop_distance = math::max(0.f, distance - min_dist_to_keep - delay_distance);
 						const float vel_max_posctrl = xy_p * stop_distance;
 
-						const float vel_max_smooth = math::trajectory::computeMaxSpeedFromBrakingDistance(max_jerk, max_accel, stop_distance);
+						const float vel_max_smooth = math::trajectory::computeMaxSpeedFromDistance(max_jerk, max_accel, stop_distance, 0.f);
 						const float projection = bin_direction.dot(setpoint_dir);
 						float vel_max_bin = vel_max;
 
@@ -452,7 +458,7 @@ CollisionPrevention::_calculateConstrainedSetpoint(Vector2f &setpoint, const Vec
 						}
 					}
 
-				} else if (_obstacle_map_body_frame.distances[i] == UINT16_MAX && i == sp_index) {
+				} else if (_obstacle_map_body_frame.distances[i] == UINT16_MAX && i == sp_index && (!move_no_data)) {
 					vel_max = 0.f;
 				}
 			}

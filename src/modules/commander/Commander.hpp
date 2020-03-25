@@ -39,8 +39,8 @@
 
 #include <lib/controllib/blocks.hpp>
 #include <lib/mathlib/mathlib.h>
-#include <px4_module.h>
-#include <px4_module_params.h>
+#include <px4_platform_common/module.h>
+#include <px4_platform_common/module_params.h>
 #include <lib/hysteresis/hysteresis.h>
 
 // publications
@@ -52,6 +52,7 @@
 #include <uORB/topics/vehicle_control_mode.h>
 #include <uORB/topics/vehicle_status.h>
 #include <uORB/topics/vehicle_status_flags.h>
+#include <uORB/topics/test_motor.h>
 
 // subscriptions
 #include <uORB/Subscription.hpp>
@@ -146,6 +147,9 @@ private:
 		(ParamInt<px4::params::COM_OBL_RC_ACT>) _param_com_obl_rc_act,
 
 		(ParamInt<px4::params::COM_PREARM_MODE>) _param_com_prearm_mode,
+		(ParamInt<px4::params::COM_MOT_TEST_EN>) _param_com_mot_test_en,
+
+		(ParamFloat<px4::params::COM_KILL_DISARM>) _param_com_kill_disarm,
 
 		(ParamInt<px4::params::CBRK_SUPPLY_CHK>) _param_cbrk_supply_chk,
 		(ParamInt<px4::params::CBRK_USB_CHK>) _param_cbrk_usb_chk,
@@ -204,6 +208,8 @@ private:
 
 	bool handle_command(vehicle_status_s *status, const vehicle_command_s &cmd, actuator_armed_s *armed,
 			    uORB::PublicationQueued<vehicle_command_ack_s> &command_ack_pub, bool *changed);
+
+	unsigned handle_command_motor_test(const vehicle_command_s &cmd);
 
 	bool set_home_position();
 	bool set_home_position_alt_only();
@@ -291,6 +297,7 @@ private:
 	uORB::Publication<actuator_armed_s>			_armed_pub{ORB_ID(actuator_armed)};
 	uORB::Publication<commander_state_s>			_commander_state_pub{ORB_ID(commander_state)};
 	uORB::Publication<vehicle_status_flags_s>		_vehicle_status_flags_pub{ORB_ID(vehicle_status_flags)};
+	uORB::Publication<test_motor_s>				_test_motor_pub{ORB_ID(test_motor)};
 
 	uORB::PublicationData<home_position_s>			_home_pub{ORB_ID(home_position)};
 

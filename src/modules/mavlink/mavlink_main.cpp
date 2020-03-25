@@ -85,8 +85,6 @@ static Mavlink *_mavlink_instances = nullptr;
  */
 extern "C" __EXPORT int mavlink_main(int argc, char *argv[]);
 
-extern mavlink_system_t mavlink_system;
-
 void mavlink_send_uart_bytes(mavlink_channel_t chan, const uint8_t *ch, int length)
 {
 	Mavlink *m = Mavlink::get_instance(chan);
@@ -159,6 +157,8 @@ mavlink_message_t *mavlink_get_channel_buffer(uint8_t channel)
 
 static void usage();
 
+hrt_abstime Mavlink::_first_start_time = {0};
+
 bool Mavlink::_boot_complete = false;
 
 Mavlink::Mavlink() :
@@ -178,6 +178,10 @@ Mavlink::Mavlink() :
 
 	if (comp_id > 0 && comp_id < 255) {
 		mavlink_system.compid = comp_id;
+	}
+
+	if (_first_start_time == 0) {
+		_first_start_time = hrt_absolute_time();
 	}
 }
 
