@@ -1,6 +1,6 @@
-module_name: DShot Driver
+module_name: Volz Driver
 serial_config:
-    - command: dshot telemetry ${SERIAL_DEV}
+    - command: volz telemetry ${SERIAL_DEV}
       port_config_param:
         name: VOLZ_TEL_CFG
         group: Volz

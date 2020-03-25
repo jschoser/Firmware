@@ -32,9 +32,10 @@
 ############################################################################
 px4_add_module(
 	MODULE drivers__volz
-	MAIN dshot
+	MAIN volz
 	SRCS
 		volz.cpp
+		volz.hpp
 	DEPENDS
 		mixer
 		mixer_module
