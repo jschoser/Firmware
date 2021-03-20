@@ -1,8 +1,8 @@
 module_name: Volz Driver
 serial_config:
-    - command: volz telemetry ${SERIAL_DEV}
+    - command: volz start -d ${SERIAL_DEV}
       port_config_param:
-        name: VOLZ_TEL_CFG
+        name: VOLZ_CFG
         group: Volz
 
 parameters:
@@ -12,25 +12,11 @@ parameters:
             description:
                 short: Configure Volz
                 long: |
-
+                    This enables/disables Volz drivers.
             type: enum
             values:
-                0: Disable
+                0: Disable (use PWM/Oneshot)
+                1: Enable
             reboot_required: true
             default: 0
-        VOLZ_MIN:
-            description:
-                short: Minimum DShot Motor Output
-                long: |
-                    Minimum Output Value for DShot in percent. The value depends on the ESC. Make
-                    sure to set this high enough so that the motors are always spinning while
-                    armed.
-            type: float
-            unit: '%'
-            min: 0
-            max: 1
-            decimal: 2
-            increment: 0.01
-            default: 0.055
-
 

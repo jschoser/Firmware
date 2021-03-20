@@ -33,13 +33,14 @@
 px4_add_module(
 	MODULE drivers__volz
 	MAIN volz
+	STACK_MAIN 1200  # copy-paste from dshot
 	SRCS
 		volz.cpp
-		volz.hpp
 	DEPENDS
+		arch_io_pins # copy-paste from dshot
 		mixer
 		mixer_module
-		output_limit
+		output_limit # copy-paste from dshot
 	MODULE_CONFIG
 		module.yaml
 	)
