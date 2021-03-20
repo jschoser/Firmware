@@ -32,5 +32,7 @@
 ############################################################################
 
 add_library(drivers_board
-	empty.c
+	board_pwm_out.cpp
+	i2c.cpp
+	spi.cpp
 )

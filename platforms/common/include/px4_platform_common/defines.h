@@ -41,55 +41,18 @@
 
 #include <px4_platform_common/log.h>
 
-#if defined(__PX4_NUTTX) && !defined(CONFIG_ARCH_MATH_H)
-#error CONFIG_ARCH_MATH_H is required to use math definitions and functions
-#endif
-
 /****************************************************************************
  * Defines for all platforms.
  ****************************************************************************/
 
-/* Get the name of the default value fiven the param name */
-#define PX4_PARAM_DEFAULT_VALUE_NAME(_name) PARAM_##_name##_DEFAULT
-
-/* Shortcuts to define parameters when the default value is defined according to PX4_PARAM_DEFAULT_VALUE_NAME */
-#define PX4_PARAM_DEFINE_INT32(_name) PARAM_DEFINE_INT32(_name, PX4_PARAM_DEFAULT_VALUE_NAME(_name))
-#define PX4_PARAM_DEFINE_FLOAT(_name) PARAM_DEFINE_FLOAT(_name, PX4_PARAM_DEFAULT_VALUE_NAME(_name))
-
 #define PX4_ERROR (-1)
 #define PX4_OK 0
-
-/* Wrapper for 2d matrices */
-#define PX4_ARRAY2D(_array, _ncols, _x, _y) (_array[_x * _ncols + _y])
-
-/* Wrapper for rotation matrices stored in arrays */
-#define PX4_R(_array, _x, _y) PX4_ARRAY2D(_array, 3, _x, _y)
 
 /* Define PX4_ISFINITE */
 #ifdef __cplusplus
 constexpr bool PX4_ISFINITE(float x) { return __builtin_isfinite(x); }
 constexpr bool PX4_ISFINITE(double x) { return __builtin_isfinite(x); }
 #endif /* __cplusplus */
-
-#if defined(__PX4_NUTTX) || defined(__PX4_POSIX)
-/****************************************************************************
- * Building for NuttX or POSIX.
- ****************************************************************************/
-
-/* Main entry point */
-#define PX4_MAIN_FUNCTION(_prefix) int _prefix##_task_main(int argc, char *argv[])
-
-/* Parameter handle datatype */
-#include <parameters/param.h>
-typedef param_t px4_param_t;
-
-/* Get value of parameter by name */
-#define PX4_PARAM_GET_BYNAME(_name, _destpt) param_get(param_find(_name), _destpt)
-
-#else // defined(__PX4_NUTTX) || defined(__PX4_POSIX)
-/****************************************************************************/
-#error "No target OS defined"
-#endif
 
 #if defined(__PX4_NUTTX)
 /****************************************************************************
@@ -123,9 +86,6 @@ typedef param_t px4_param_t;
 // NuttX _IOC is equivalent to Linux _IO
 #define _PX4_IOC(x,y) _IO(x,y)
 
-/* FIXME - Used to satisfy build */
-#define getreg32(a)    (*(volatile uint32_t *)(a))
-
 #define USEC_PER_TICK (1000000/PX4_TICKS_PER_SEC)
 #define USEC2TICK(x) (((x)+(USEC_PER_TICK/2))/USEC_PER_TICK)
 
@@ -135,7 +95,6 @@ typedef param_t px4_param_t;
 #  include "dspal_math.h"
 #  define PX4_ROOTFSDIR "."
 #  define PX4_TICKS_PER_SEC 1000L
-#  define SIOCDEVPRIVATE 999999
 
 #else // __PX4_QURT
 
@@ -147,8 +106,6 @@ __END_DECLS
 
 #  if defined(__PX4_POSIX_EAGLE) || defined(__PX4_POSIX_EXCELSIOR)
 #    define PX4_ROOTFSDIR "/home/linaro"
-#  elif defined(__PX4_POSIX_BEBOP)
-#    define PX4_ROOTFSDIR "/data/ftp/internal_000/px4"
 #  else
 #    define PX4_ROOTFSDIR "."
 #  endif

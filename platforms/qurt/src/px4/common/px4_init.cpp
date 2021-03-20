@@ -38,13 +38,17 @@
 #include <lib/parameters/param.h>
 #include <px4_platform_common/px4_work_queue/WorkQueueManager.hpp>
 
-int px4_platform_init(void)
+int px4_platform_init()
 {
 	hrt_init();
 
 	param_init();
 
 	px4::WorkQueueManagerStart();
+
+	uorb_start();
+
+	//px4_log_initialize();
 
 	return PX4_OK;
 }

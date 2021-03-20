@@ -8,19 +8,19 @@ px4_add_board(
 	LABEL default
 	TOOLCHAIN arm-none-eabi
 	ARCHITECTURE cortex-m4
+	CONSTRAINED_MEMORY
 	ROMFSROOT px4fmu_common
 	IO px4_io-v2_default
 	TESTING
 	UAVCAN_INTERFACES 2
-
 	SERIAL_PORTS
 		GPS1:/dev/ttyS3
 		TEL1:/dev/ttyS1
 		TEL2:/dev/ttyS2
 		TEL4:/dev/ttyS6
-
 	DRIVERS
-		adc
+		adc/board_adc
+		adc/ads1115
 		barometer # all available barometer drivers
 		batt_smbus
 		camera_capture
@@ -32,46 +32,50 @@ px4_add_board(
 
 		gps
 		#heater
-		imu/adis16448
 		#imu # all available imu drivers
+		imu/analog_devices/adis16448
 		imu/l3gd20
 		imu/lsm303d
-		imu/mpu6000
-		imu/mpu9250
-		imu/icm20948
+		imu/invensense/icm20608g
+		imu/invensense/icm20948
+		imu/invensense/mpu6000
+		imu/invensense/mpu9250
 		irlock
 		lights/blinkm
 		lights/rgbled
 		lights/rgbled_ncp5623c
-		#lights/rgbled_pwm
 		magnetometer # all available magnetometer drivers
-		#md25
-		mkblctrl
 		#optical_flow # all available optical flow drivers
 		optical_flow/px4flow
+		#osd
 		pca9685
-		protocol_splitter
+		pca9685_pwm_out
+		#power_monitor/ina226
+		#protocol_splitter
 		pwm_input
 		pwm_out_sim
-		px4fmu
+		pwm_out
 		px4io
 		roboclaw
-		tap_esc
 		telemetry # all available telemetry drivers
 		test_ppm
 		tone_alarm
 		uavcan
-
 	MODULES
+		airspeed_selector
 		attitude_estimator_q
+		battery_status
 		camera_feedback
 		commander
 		dataman
 		ekf2
+		esc_battery
 		events
+		flight_mode_manager
 		fw_att_control
 		fw_pos_control_l1
-		rover_pos_control
+		gyro_calibration
+		gyro_fft
 		land_detector
 		landing_target_estimator
 		load_mon
@@ -79,23 +83,28 @@ px4_add_board(
 		logger
 		mavlink
 		mc_att_control
+		mc_hover_thrust_estimator
 		mc_pos_control
+		mc_rate_control
+		#micrortps_bridge
 		navigator
-		battery_status
+		rc_update
+		rover_pos_control
 		sensors
 		sih
+		temperature_compensation
 		vmount
 		vtol_att_control
-		airspeed_selector
-
 	SYSTEMCMDS
 		bl_update
-		config
+		#dmesg
 		dumpfile
 		esc_calib
+		gpio
 		hardfault_log
 		i2cdetect
 		led_control
+		mft
 		mixer
 		motor_ramp
 		motor_test
@@ -107,17 +116,17 @@ px4_add_board(
 		reboot
 		reflect
 		sd_bench
-		shutdown
+		system_time
 		tests # tests and test runner
 		top
 		topic_listener
 		tune_control
+		uorb
 		usb_connected
 		ver
 		work_queue
-
 	EXAMPLES
-		bottle_drop # OBC challenge
+		fake_gps
 		fixedwing_control # Tutorial code from https://px4.io/dev/example_fixedwing_control
 		hello
 		hwtest # Hardware test
@@ -126,5 +135,5 @@ px4_add_board(
 		px4_simple_app # Tutorial code from http://dev.px4.io/en/apps/hello_sky.html
 		rover_steering_control # Rover example app
 		uuv_example_app
-
+		work_item
 	)

@@ -101,7 +101,7 @@ typedef struct {
 #endif
 
 // PX4 work queue starting high priority
-#define PX4_WQ_HP_BASE (SCHED_PRIORITY_MAX - 12)
+#define PX4_WQ_HP_BASE (SCHED_PRIORITY_MAX - 15)
 
 // Fast drivers - they need to run as quickly as possible to minimize control
 // latency.
@@ -123,11 +123,6 @@ typedef struct {
 // priority ensures that the estimator runs first if it can, but will
 // wait for the sensor hub if its data is coming from it.
 #define SCHED_PRIORITY_ESTIMATOR		(PX4_WQ_HP_BASE - 5)
-
-// The sensor hub conditions sensor data. It is not the fastest component
-// in the controller chain, but provides easy-to-use data to the more
-// complex downstream consumers
-#define SCHED_PRIORITY_SENSOR_HUB		(PX4_WQ_HP_BASE - 6)
 
 // Position controllers typically are in a blocking wait on estimator data
 // so when new sensor data is available they will run last. Keeping them
@@ -153,10 +148,6 @@ typedef struct {
 typedef int (*px4_main_t)(int argc, char *argv[]);
 
 __BEGIN_DECLS
-
-/** Reboots the board (without waiting for clean shutdown). Modules should use px4_shutdown_request() in most cases.
- */
-__EXPORT void px4_systemreset(bool to_bootloader) noreturn_function;
 
 /** Starts a task and performs any specific accounting, scheduler setup, etc. */
 __EXPORT px4_task_t px4_task_spawn_cmd(const char *name,

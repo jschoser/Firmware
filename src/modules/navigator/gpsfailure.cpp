@@ -91,7 +91,6 @@ GpsFailure::on_active()
 
 			Quatf q(Eulerf(att_sp.roll_body, att_sp.pitch_body, 0.0f));
 			q.copyTo(att_sp.q_d);
-			att_sp.q_d_valid = true;
 
 			if (_navigator->get_vstatus()->is_vtol) {
 				_fw_virtual_att_sp_pub.publish(att_sp);
@@ -154,7 +153,7 @@ GpsFailure::advance_gpsf()
 	switch (_gpsf_state) {
 	case GPSF_STATE_NONE:
 		_gpsf_state = GPSF_STATE_LOITER;
-		mavlink_log_critical(_navigator->get_mavlink_log_pub(), "Global position failure: fixed bank loiter");
+		mavlink_log_critical(_navigator->get_mavlink_log_pub(), "Global position failure: loitering");
 		break;
 
 	case GPSF_STATE_LOITER:

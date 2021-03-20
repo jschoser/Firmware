@@ -50,9 +50,8 @@
 #include <fcntl.h>
 #include <systemlib/err.h>
 #include <parameters/param.h>
-#include <lib/mixer/mixer.h>
 #include <version/version.h>
-#include <arch/board/board.h>
+
 #include <arch/chip/chip.h>
 
 #include <uORB/topics/esc_status.h>
@@ -83,6 +82,9 @@ UavcanNode::UavcanNode(uavcan::ICanDriver &can_driver, uavcan::ISystemClock &sys
 	_node(can_driver, system_clock, _pool_allocator),
 	_esc_controller(_node),
 	_hardpoint_controller(_node),
+	_beep_controller(_node),
+	_safety_state_controller(_node),
+	_rgbled_controller(_node),
 	_time_sync_master(_node),
 	_time_sync_slave(_node),
 	_node_status_monitor(_node),
@@ -519,7 +521,7 @@ UavcanNode::start(uavcan::NodeID node_id, uint32_t bitrate)
 
 	if (can == nullptr) {
 
-		can = new CanInitHelper();
+		can = new CanInitHelper(board_get_can_interfaces());
 
 		if (can == nullptr) {                    // We don't have exceptions so bad_alloc cannot be thrown
 			PX4_ERR("Out of memory");
@@ -622,6 +624,24 @@ UavcanNode::init(uavcan::NodeID node_id, UAVCAN_DRIVER::BusEvent &bus_events)
 		return ret;
 	}
 
+	ret = _beep_controller.init();
+
+	if (ret < 0) {
+		return ret;
+	}
+
+	ret = _safety_state_controller.init();
+
+	if (ret < 0) {
+		return ret;
+	}
+
+	ret = _rgbled_controller.init();
+
+	if (ret < 0) {
+		return ret;
+	}
+
 	// Sensor bridges
 	IUavcanSensorBridge::make_all(_node, _sensor_bridges);
 
@@ -633,7 +653,7 @@ UavcanNode::init(uavcan::NodeID node_id, UAVCAN_DRIVER::BusEvent &bus_events)
 			return ret;
 		}
 
-		PX4_INFO("sensor bridge '%s' init ok", br->get_name());
+		PX4_DEBUG("sensor bridge '%s' init ok", br->get_name());
 	}
 
 	_mixing_interface.mixingOutput().setAllDisarmedValues(UavcanEscController::DISARMED_OUTPUT_VALUE);
@@ -750,6 +770,10 @@ UavcanNode::Run()
 	perf_begin(_cycle_perf);
 	perf_count(_interval_perf);
 
+	for (auto &br : _sensor_bridges) {
+		br->update();
+	}
+
 	node_spin_once(); // expected to be non-blocking
 
 	// Check arming state
@@ -827,10 +851,6 @@ UavcanNode::ioctl(file *filp, int cmd, unsigned long arg)
 	case PWM_SERVO_CLEAR_ARM_OK:
 	case PWM_SERVO_SET_FORCE_SAFETY_OFF:
 		// these are no-ops, as no safety switch
-		break;
-
-	case MIXERIOCGETOUTPUTCOUNT:
-		*(unsigned *)arg = _output_count;
 		break;
 
 	case MIXERIOCRESET:
@@ -941,12 +961,15 @@ UavcanNode::print_info()
 		printf("CAN%u status:\n", unsigned(i + 1));
 
 		auto iface = _node.getDispatcher().getCanIOManager().getCanDriver().getIface(i);
-		printf("\tHW errors: %llu\n", iface->getErrorCount());
 
-		auto iface_perf_cnt = _node.getDispatcher().getCanIOManager().getIfacePerfCounters(i);
-		printf("\tIO errors: %llu\n", iface_perf_cnt.errors);
-		printf("\tRX frames: %llu\n", iface_perf_cnt.frames_rx);
-		printf("\tTX frames: %llu\n", iface_perf_cnt.frames_tx);
+		if (iface) {
+			printf("\tHW errors: %llu\n", iface->getErrorCount());
+
+			auto iface_perf_cnt = _node.getDispatcher().getCanIOManager().getIfacePerfCounters(i);
+			printf("\tIO errors: %llu\n", iface_perf_cnt.errors);
+			printf("\tRX frames: %llu\n", iface_perf_cnt.frames_rx);
+			printf("\tTX frames: %llu\n", iface_perf_cnt.frames_tx);
+		}
 	}
 
 	printf("\n");

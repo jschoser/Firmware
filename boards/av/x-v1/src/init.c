@@ -64,13 +64,13 @@
 #include <chip.h>
 #include <stm32_uart.h>
 #include <arch/board/board.h>
-#include "up_internal.h"
+#include "arm_internal.h"
 
+#include <px4_arch/io_timer.h>
 #include <drivers/drv_hrt.h>
 #include <drivers/drv_board_led.h>
 #include <systemlib/px4_macros.h>
 #include <px4_platform_common/init.h>
-#include <px4_platform_common/i2c.h>
 #include <px4_platform/gpio.h>
 #include <px4_platform/board_dma_alloc.h>
 
@@ -89,10 +89,9 @@ static int configure_switch(void);
  ************************************************************************************/
 __EXPORT void board_on_reset(int status)
 {
-	/* configure the GPIO pins to outputs and keep them low */
-
-	const uint32_t gpio[] = PX4_GPIO_PWM_INIT_LIST;
-	px4_gpio_init(gpio, arraySize(gpio));
+	for (int i = 0; i < DIRECT_PWM_OUTPUT_CHANNELS; ++i) {
+		px4_arch_configgpio(PX4_MAKE_GPIO_INPUT(io_timer_channel_get_as_pwm_input(i)));
+	}
 
 	if (status >= 0) {
 		up_mdelay(6);
@@ -193,6 +192,10 @@ __EXPORT int board_app_initialize(uintptr_t arg)
 
 	configure_switch();
 
+	/* Configure the HW based on the manifest */
+
+	px4_platform_configure();
+
 	return OK;
 }
 
@@ -207,8 +210,8 @@ static int configure_switch(void)
 {
 	int ret = PX4_ERROR;
 
-	// attach to the i2c bus
-	struct i2c_master_s *i2c = px4_i2cbus_initialize(PX4_I2C_BUS_ONBOARD);
+	// attach to the i2c bus (internal)
+	struct i2c_master_s *i2c = px4_i2cbus_initialize(3);
 
 	if (i2c == NULL) {
 		syslog(LOG_ERR, "[boot] I2C device not opened\n");
@@ -217,7 +220,7 @@ static int configure_switch(void)
 	// ethernet switch enable
 	uint8_t txdata[] = {0x51, 0x00, 0x21, 0x00}; //0x5100, 0x2100 MSB to LSB here.
 
-	struct px4_i2c_msg_t msgv;
+	struct i2c_msg_s msgv;
 
 	msgv.frequency = 100000;
 	msgv.addr = 0x5F;

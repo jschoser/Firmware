@@ -129,6 +129,8 @@ device_bus_to_wq(uint32_t device_id_int)
 
 	if (bus_type == device::Device::DeviceBusType_I2C) {
 		switch (bus) {
+		case 0: return wq_configurations::I2C0;
+
 		case 1: return wq_configurations::I2C1;
 
 		case 2: return wq_configurations::I2C2;
@@ -140,6 +142,8 @@ device_bus_to_wq(uint32_t device_id_int)
 
 	} else if (bus_type == device::Device::DeviceBusType_SPI) {
 		switch (bus) {
+		case 0: return wq_configurations::SPI0;
+
 		case 1: return wq_configurations::SPI1;
 
 		case 2: return wq_configurations::SPI2;
@@ -157,6 +161,62 @@ device_bus_to_wq(uint32_t device_id_int)
 	// otherwise use high priority
 	return wq_configurations::hp_default;
 };
+
+const wq_config_t &
+serial_port_to_wq(const char *serial)
+{
+	if (serial == nullptr) {
+		return wq_configurations::hp_default;
+
+	} else if (strstr(serial, "ttyS0")) {
+		return wq_configurations::UART0;
+
+	} else if (strstr(serial, "ttyS1")) {
+		return wq_configurations::UART1;
+
+	} else if (strstr(serial, "ttyS2")) {
+		return wq_configurations::UART2;
+
+	} else if (strstr(serial, "ttyS3")) {
+		return wq_configurations::UART3;
+
+	} else if (strstr(serial, "ttyS4")) {
+		return wq_configurations::UART4;
+
+	} else if (strstr(serial, "ttyS5")) {
+		return wq_configurations::UART5;
+
+	} else if (strstr(serial, "ttyS6")) {
+		return wq_configurations::UART6;
+
+	} else if (strstr(serial, "ttyS7")) {
+		return wq_configurations::UART7;
+
+	} else if (strstr(serial, "ttyS8")) {
+		return wq_configurations::UART8;
+	}
+
+	PX4_DEBUG("unknown serial port: %s", serial);
+
+	return wq_configurations::UART_UNKNOWN;
+}
+
+const wq_config_t &ins_instance_to_wq(uint8_t instance)
+{
+	switch (instance) {
+	case 0: return wq_configurations::INS0;
+
+	case 1: return wq_configurations::INS1;
+
+	case 2: return wq_configurations::INS2;
+
+	case 3: return wq_configurations::INS3;
+	}
+
+	PX4_WARN("no INS%d wq configuration, using INS0", instance);
+
+	return wq_configurations::INS0;
+}
 
 static void *
 WorkQueueRunner(void *context)
@@ -221,6 +281,7 @@ WorkQueueManagerRun(int, char **)
 			}
 
 #ifndef __PX4_QURT
+
 			// schedule policy FIFO
 			int ret_setschedpolicy = pthread_attr_setschedpolicy(&attr, SCHED_FIFO);
 
@@ -270,7 +331,7 @@ WorkQueueManagerStart()
 
 		int task_id = px4_task_spawn_cmd("wq:manager",
 						 SCHED_DEFAULT,
-						 PX4_WQ_HP_BASE,
+						 SCHED_PRIORITY_MAX,
 						 1280,
 						 (px4_main_t)&WorkQueueManagerRun,
 						 nullptr);
@@ -346,7 +407,7 @@ WorkQueueManagerStatus()
 	if (!_wq_manager_should_exit.load() && (_wq_manager_wqs_list != nullptr)) {
 
 		const size_t num_wqs = _wq_manager_wqs_list->size();
-		PX4_INFO_RAW("\nWork Queue: %-1zu threads                      RATE        INTERVAL\n", num_wqs);
+		PX4_INFO_RAW("\nWork Queue: %-1zu threads                        RATE        INTERVAL\n", num_wqs);
 
 		LockGuard lg{_wq_manager_wqs_list->mutex()};
 		size_t i = 0;
@@ -354,7 +415,7 @@ WorkQueueManagerStatus()
 		for (WorkQueue *wq : *_wq_manager_wqs_list) {
 			i++;
 
-			const bool last_wq = !(i < num_wqs);
+			const bool last_wq = (i >= num_wqs);
 
 			if (!last_wq) {
 				PX4_INFO_RAW("|__ %zu) ", i);

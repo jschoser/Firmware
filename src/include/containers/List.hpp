@@ -62,8 +62,25 @@ public:
 
 	void add(T newNode)
 	{
-		newNode->setSibling(getHead());
-		_head = newNode;
+		if (_head == nullptr) {
+			// list is empty, add as head
+			_head = newNode;
+			return;
+
+		} else {
+			// find last node and add to end
+			T node = _head;
+
+			while (node != nullptr) {
+				if (node->getSibling() == nullptr) {
+					// found last node, now add newNode
+					node->setSibling(newNode);
+					return;
+				}
+
+				node = node->getSibling();
+			}
+		}
 	}
 
 	bool remove(T removeNode)
@@ -77,6 +94,8 @@ public:
 			if (_head != nullptr) {
 				_head = _head->getSibling();
 			}
+
+			removeNode->setSibling(nullptr);
 
 			return true;
 		}
@@ -92,6 +111,8 @@ public:
 					node->setSibling(nullptr);
 				}
 
+				removeNode->setSibling(nullptr);
+
 				return true;
 			}
 		}
@@ -105,12 +126,12 @@ public:
 
 		operator T() const { return node; }
 		operator T &() { return node; }
-		T operator* () const { return node; }
+		const T &operator* () const { return node; }
 		Iterator &operator++ ()
 		{
 			if (node) {
 				node = node->getSibling();
-			};
+			}
 
 			return *this;
 		}

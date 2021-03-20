@@ -196,7 +196,7 @@ void FollowTarget::on_active()
 						_current_target_motion.lat,
 						_current_target_motion.lon);
 
-				_yaw_rate = wrap_pi((_yaw_angle - _navigator->get_global_position()->yaw) / (dt_ms / 1000.0f));
+				_yaw_rate = wrap_pi((_yaw_angle - _navigator->get_local_position()->heading) / (dt_ms / 1000.0f));
 
 			} else {
 				_yaw_angle = _yaw_rate = NAN;
@@ -229,7 +229,7 @@ void FollowTarget::on_active()
 	// 3 degrees of facing target
 
 	if (PX4_ISFINITE(_yaw_rate)) {
-		if (fabsf(fabsf(_yaw_angle) - fabsf(_navigator->get_global_position()->yaw)) < math::radians(3.0F)) {
+		if (fabsf(fabsf(_yaw_angle) - fabsf(_navigator->get_local_position()->heading)) < math::radians(3.0F)) {
 			_yaw_rate = NAN;
 		}
 	}
@@ -327,7 +327,6 @@ void FollowTarget::update_position_sp(bool use_velocity, bool use_position, floa
 	mission_apply_limitation(_mission_item);
 	mission_item_to_position_setpoint(_mission_item, &pos_sp_triplet->current);
 	pos_sp_triplet->current.type = position_setpoint_s::SETPOINT_TYPE_FOLLOW_TARGET;
-	pos_sp_triplet->current.position_valid = use_position;
 	pos_sp_triplet->current.velocity_valid = use_velocity;
 	pos_sp_triplet->current.vx = _current_vel(0);
 	pos_sp_triplet->current.vy = _current_vel(1);

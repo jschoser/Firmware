@@ -295,8 +295,12 @@ void LogWriterFile::run()
 			/* Wait for a call to notify(), which indicates new data is available.
 			 * Note that at this point there could already be new data available (because of a longer write),
 			 * and calling pthread_cond_wait() will still wait for the next notify(). But this is generally
-			 * not an issue because notify() is called regularly. */
-			pthread_cond_wait(&_cv, &_mtx);
+			 * not an issue because notify() is called regularly.
+			 * If the logger was switched off in the meantime, do not wait for data, instead run this loop
+			 * once more to write remaining data and close the file. */
+			if (_buffers[0]._should_run) {
+				pthread_cond_wait(&_cv, &_mtx);
+			}
 		}
 
 		// go back to idle
@@ -453,7 +457,7 @@ bool LogWriterFile::LogFileBuffer::start_log(const char *filename)
 	}
 
 	if (_buffer == nullptr) {
-		_buffer = new uint8_t[_buffer_size];
+		_buffer = (uint8_t *) px4_cache_aligned_alloc(_buffer_size);
 
 		if (_buffer == nullptr) {
 			PX4_ERR("Can't create log buffer");

@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (c) 2014-2016 PX4 Development Team. All rights reserved.
+ *   Copyright (c) 2014-2020 PX4 Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -43,8 +43,15 @@
 #include <cstring>
 
 #include "mavlink_ftp.h"
-#include "mavlink_main.h"
 #include "mavlink_tests/mavlink_ftp_test.h"
+
+#ifndef MAVLINK_FTP_UNIT_TEST
+#include "mavlink_main.h"
+#else
+#include <v2.0/standard/mavlink.h>
+#endif
+
+using namespace time_literals;
 
 constexpr const char MavlinkFTP::_root_dir[];
 
@@ -171,7 +178,11 @@ MavlinkFTP::_process_request(
 		if (payload->seq_number + 1 == last_payload->seq_number) {
 			// this is the same request as the one we replied to last. It means the (n)ack got lost, and the GCS
 			// resent the request
+#ifdef MAVLINK_FTP_UNIT_TEST
+			_utRcvMsgFunc(last_reply, _worker_data);
+#else
 			mavlink_msg_file_transfer_protocol_send_struct(_mavlink->get_channel(), last_reply);
+#endif
 			return;
 		}
 	}
@@ -204,7 +215,7 @@ MavlinkFTP::_process_request(
 		break;
 
 	case kCmdCreateFile:
-		errorCode = _workOpen(payload, O_CREAT | O_EXCL | O_WRONLY);
+		errorCode = _workOpen(payload, O_CREAT | O_TRUNC | O_WRONLY);
 		break;
 
 	case kCmdOpenFileWO:
@@ -269,6 +280,9 @@ out:
 
 		if (r_errno == EEXIST) {
 			errorCode = kErrFailFileExists;
+
+		} else if (r_errno == ENOENT && errorCode == kErrFailErrno) {
+			errorCode = kErrFileNotFound;
 		}
 
 		payload->data[0] = errorCode;
@@ -336,7 +350,7 @@ MavlinkFTP::_reply(mavlink_file_transfer_protocol_t *ftp_req)
 
 /// @brief Responds to a List command
 MavlinkFTP::ErrorCode
-MavlinkFTP::_workList(PayloadHeader *payload, bool list_hidden)
+MavlinkFTP::_workList(PayloadHeader *payload)
 {
 	strncpy(_work_buffer1, _root_dir, _work_buffer1_len);
 	strncpy(_work_buffer1 + _root_dir_len, _data_as_cstring(payload), _work_buffer1_len - _root_dir_len);
@@ -350,9 +364,7 @@ MavlinkFTP::_workList(PayloadHeader *payload, bool list_hidden)
 
 	if (dp == nullptr) {
 		PX4_WARN("File open failed %s", _work_buffer1);
-		// this is not an FTP error, abort directory by setting errno to ENOENT "No such file or directory"
-		errno = ENOENT;
-		return kErrFailErrno;
+		return kErrFileNotFound;
 	}
 
 #ifdef MAVLINK_FTP_DEBUG
@@ -428,8 +440,7 @@ MavlinkFTP::_workList(PayloadHeader *payload, bool list_hidden)
 #else
 		case DT_DIR:
 #endif
-			if ((!list_hidden && (strncmp(result->d_name, ".", 1) == 0)) ||
-			    strcmp(result->d_name, ".") == 0 || strcmp(result->d_name, "..") == 0) {
+			if (strcmp(result->d_name, ".") == 0 || strcmp(result->d_name, "..") == 0) {
 				// Don't bother sending these back
 				direntType = kDirentSkip;
 
@@ -945,12 +956,12 @@ MavlinkFTP::_copy_file(const char *src_path, const char *dst_path, size_t length
 	return (length > 0) ? -1 : 0;
 }
 
-void MavlinkFTP::send(const hrt_abstime t)
+void MavlinkFTP::send()
 {
 
 	if (_work_buffer1 || _work_buffer2) {
 		// free the work buffers if they are not used for a while
-		if (hrt_elapsed_time(&_last_work_buffer_access) > 2000000) {
+		if (hrt_elapsed_time(&_last_work_buffer_access) > 2_s) {
 			if (_work_buffer1) {
 				delete[] _work_buffer1;
 				_work_buffer1 = nullptr;
@@ -960,6 +971,16 @@ void MavlinkFTP::send(const hrt_abstime t)
 				delete[] _work_buffer2;
 				_work_buffer2 = nullptr;
 			}
+		}
+
+	} else if (_session_info.fd != -1) {
+		// close session without activity
+		if (hrt_elapsed_time(&_last_work_buffer_access) > 10_s) {
+			::close(_session_info.fd);
+			_session_info.fd = -1;
+			_session_info.stream_download = false;
+			_last_reply_valid = false;
+			PX4_WARN("Session was closed without activity");
 		}
 	}
 

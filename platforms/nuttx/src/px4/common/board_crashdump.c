@@ -1,3 +1,43 @@
+/****************************************************************************
+ *
+ *   Copyright (C) 2017-2019 PX4 Development Team. All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in
+ *    the documentation and/or other materials provided with the
+ *    distribution.
+ * 3. Neither the name PX4 nor the names of its contributors may be
+ *    used to endorse or promote products derived from this software
+ *    without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+ * COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+ * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+ * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS
+ * OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
+ * AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
+ * ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
+ *
+ ****************************************************************************/
+
+/**
+ * @file board_crashdump.c
+ *
+ * Provides common board logic for crashdump callout
+ * and hardfault log support
+ */
+
 #ifdef CONFIG_BOARD_CRASHDUMP
 
 #include <board_config.h>
@@ -11,13 +51,18 @@
 
 #include <nuttx/board.h>
 
-#include "up_internal.h"
+#include "arm_internal.h"
 #include <systemlib/hardfault_log.h>
+#include "nvic.h"
 
 #if defined(CONFIG_STM32F7_BBSRAM) && defined(CONFIG_STM32F7_SAVE_CRASHDUMP)
 #  define HAS_BBSRAM CONFIG_STM32F7_BBSRAM
 #  define BBSRAM_FILE_COUNT CONFIG_STM32F7_BBSRAM_FILES
 #  define SAVE_CRASHDUMP CONFIG_STM32F7_SAVE_CRASHDUMP
+#elif defined(CONFIG_STM32H7_BBSRAM) && defined(CONFIG_STM32H7_SAVE_CRASHDUMP)
+#  define HAS_BBSRAM CONFIG_STM32H7_BBSRAM
+#  define BBSRAM_FILE_COUNT CONFIG_STM32H7_BBSRAM_FILES
+#  define SAVE_CRASHDUMP CONFIG_STM32H7_SAVE_CRASHDUMP
 #elif defined(CONFIG_STM32_BBSRAM) && defined(CONFIG_STM32_SAVE_CRASHDUMP)
 #  define HAS_BBSRAM CONFIG_STM32_BBSRAM
 #  define BBSRAM_FILE_COUNT CONFIG_STM32_BBSRAM_FILES
@@ -85,7 +130,7 @@ int board_hardfault_init(int display_to_console, bool allow_prompt)
 
 		/* Also end the misery for a user that holds for a key down on the console */
 
-		int bytesWaiting;
+		int bytesWaiting = 0;
 		ioctl(fileno(stdin), FIONREAD, (unsigned long)((uintptr_t) &bytesWaiting));
 
 		if (reboots > display_to_console || bytesWaiting != 0) {
@@ -190,7 +235,7 @@ static uint32_t *__attribute__((noinline)) __sdata_addr(void)
 }
 
 
-__EXPORT void board_crashdump(uintptr_t currentsp, FAR void *tcb, FAR const uint8_t *filename, int lineno)
+__EXPORT void board_crashdump(uintptr_t currentsp, FAR void *tcb, FAR const char *filename, int lineno)
 {
 #ifndef BOARD_CRASHDUMP_RESET_ONLY
 	/* We need a chunk of ram to save the complete context in.
@@ -243,6 +288,16 @@ __EXPORT void board_crashdump(uintptr_t currentsp, FAR void *tcb, FAR const uint
 
 	pdump->info.pid = rtcb->pid;
 
+	pdump->info.fault_regs.cfsr  = getreg32(NVIC_CFAULTS);
+	pdump->info.fault_regs.hfsr  = getreg32(NVIC_HFAULTS);
+	pdump->info.fault_regs.dfsr  = getreg32(NVIC_DFAULTS);
+	pdump->info.fault_regs.mmfsr = getreg32(NVIC_MEMMANAGE_ADDR);
+	pdump->info.fault_regs.bfsr  = getreg32(NVIC_BFAULT_ADDR);
+	pdump->info.fault_regs.afsr  = getreg32(NVIC_AFAULTS);
+#if defined(CONFIG_ARCH_CORTEXM7)
+	pdump->info.fault_regs.abfsr = getreg32(NVIC_ABFSR);
+#endif
+	pdump->info.flags |= eFaultRegPresent;
 
 	/* If  current_regs is not NULL then we are in an interrupt context
 	 * and the user context is in current_regs else we are running in
@@ -322,14 +377,14 @@ __EXPORT void board_crashdump(uintptr_t currentsp, FAR void *tcb, FAR const uint
 		char *dead = "Memory wiped - dump not saved!";
 
 		while (*dead) {
-			up_lowputc(*dead++);
+			arm_lowputc(*dead++);
 		}
 
 	} else if (rv == -ENOSPC) {
 
 		/* hard fault again */
 
-		up_lowputc('!');
+		arm_lowputc('!');
 	}
 
 #endif /* BOARD_CRASHDUMP_RESET_ONLY */

@@ -10,23 +10,25 @@ px4_add_board(
 	IO px4_io-v2_default
 	TESTING
 	UAVCAN_INTERFACES 2
-
 	SERIAL_PORTS
 		GPS1:/dev/ttyS0
 		TEL1:/dev/ttyS1
 		TEL2:/dev/ttyS2
 		TEL4:/dev/ttyS3
-
 	DRIVERS
-		adc
+		adc/board_adc
 		barometer # all available barometer drivers
 		batt_smbus
 		camera_capture
 		camera_trigger
 		distance_sensor # all available distance sensor drivers
+		dshot
 		gps
-		imu/bmi055
-		imu/mpu6000
+		imu/analog_devices/adis16448
+		#imu # all available imu drivers
+		imu/bosch/bmi055
+		imu/invensense/icm20602
+		imu/invensense/icm20689
 		irlock
 		lights/blinkm
 		lights/rgbled
@@ -36,23 +38,24 @@ px4_add_board(
 		optical_flow # all available optical flow drivers
 		pwm_input
 		pwm_out_sim
-		px4fmu
+		pwm_out
 		px4io
 		rc_input
 		roboclaw
 		safety_button
-		tap_esc
 		telemetry # all available telemetry drivers
 		tone_alarm
 		uavcan
-
 	MODULES
 		attitude_estimator_q
+		battery_status
 		camera_feedback
 		commander
 		dataman
 		ekf2
 		events
+		flight_mode_manager
+		gyro_fft
 		land_detector
 		landing_target_estimator
 		load_mon
@@ -60,22 +63,24 @@ px4_add_board(
 		logger
 		mavlink
 		mc_att_control
+		mc_hover_thrust_estimator
 		mc_pos_control
+		mc_rate_control
 		navigator
-		battery_status
+		rc_update
 		sensors
 		sih
+		temperature_compensation
 		vmount
-		airspeed_selector
-
 	SYSTEMCMDS
 		bl_update
-		config
+		dmesg
 		dumpfile
 		esc_calib
 		hardfault_log
 		i2cdetect
 		led_control
+		mft
 		mixer
 		motor_ramp
 		motor_test
@@ -87,12 +92,12 @@ px4_add_board(
 		reboot
 		reflect
 		sd_bench
-		shutdown
+		system_time
 		top
 		topic_listener
 		tune_control
+		uorb
 		usb_connected
 		ver
 		work_queue
-
 	)

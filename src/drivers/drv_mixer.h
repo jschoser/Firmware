@@ -65,8 +65,7 @@
 #define _MIXERIOCBASE		(0x2500)
 #define _MIXERIOC(_n)		(_PX4_IOC(_MIXERIOCBASE, _n))
 
-/** get the number of mixable outputs */
-#define MIXERIOCGETOUTPUTCOUNT	_MIXERIOC(0)
+/* _MIXERIOC(0) was deprecated */
 
 /** reset (clear) the mixer configuration */
 #define MIXERIOCRESET		_MIXERIOC(1)
@@ -86,4 +85,4 @@
  * - save/serialise for saving tuned mixers.
  */
 
-#endif /* _DRV_ACCEL_H */
+#endif /* _DRV_MIXER_H */

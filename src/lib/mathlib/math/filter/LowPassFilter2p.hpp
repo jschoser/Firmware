@@ -38,6 +38,8 @@
 
 #pragma once
 
+#include <px4_platform_common/defines.h>
+
 namespace math
 {
 class __EXPORT LowPassFilter2p
@@ -58,7 +60,23 @@ public:
 	 *
 	 * @return retrieve the filtered result
 	 */
-	float apply(float sample);
+	inline float apply(float sample)
+	{
+		// Direct Form II implementation
+		float delay_element_0 = sample - _delay_element_1 * _a1 - _delay_element_2 * _a2;
+
+		if (!PX4_ISFINITE(delay_element_0)) {
+			// don't allow bad values to propagate via the filter
+			delay_element_0 = sample;
+		}
+
+		const float output = delay_element_0 * _b0 + _delay_element_1 * _b1 + _delay_element_2 * _b2;
+
+		_delay_element_2 = _delay_element_1;
+		_delay_element_1 = delay_element_0;
+
+		return output;
+	}
 
 	// Return the cutoff frequency
 	float get_cutoff_freq() const { return _cutoff_freq; }
@@ -66,7 +84,7 @@ public:
 	// Reset the filter state to this value
 	float reset(float sample);
 
-private:
+protected:
 
 	float _cutoff_freq{0.0f};
 

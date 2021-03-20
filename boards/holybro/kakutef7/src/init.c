@@ -62,13 +62,13 @@
 #include <chip.h>
 #include <stm32_uart.h>
 #include <arch/board/board.h>
-#include "up_internal.h"
+#include "arm_internal.h"
 
+#include <px4_arch/io_timer.h>
 #include <drivers/drv_hrt.h>
 #include <drivers/drv_board_led.h>
 #include <systemlib/px4_macros.h>
 #include <px4_platform_common/init.h>
-#include <px4_platform/gpio.h>
 #include <px4_platform/gpio.h>
 #include <px4_platform/board_dma_alloc.h>
 
@@ -83,7 +83,7 @@
 /* Configuration ************************************************************/
 
 /*
- * Ideally we'd be able to get these from up_internal.h,
+ * Ideally we'd be able to get these from arm_internal.h,
  * but since we want to be able to disable the NuttX use
  * of leds for system indication at will and there is no
  * separate switch, we need to build independent of the
@@ -119,10 +119,9 @@ __EXPORT void board_peripheral_reset(int ms)
  ************************************************************************************/
 __EXPORT void board_on_reset(int status)
 {
-	/* configure the GPIO pins to outputs and keep them low */
-
-	const uint32_t gpio[] = PX4_GPIO_PWM_INIT_LIST;
-	px4_gpio_init(gpio, arraySize(gpio));
+	for (int i = 0; i < DIRECT_PWM_OUTPUT_CHANNELS; ++i) {
+		px4_arch_configgpio(PX4_MAKE_GPIO_INPUT(io_timer_channel_get_as_pwm_input(i)));
+	}
 
 	if (status >= 0) {
 		up_mdelay(6);
@@ -266,6 +265,10 @@ __EXPORT int board_app_initialize(uintptr_t arg)
 	}
 
 #endif
+
+	/* Configure the HW based on the manifest */
+
+	px4_platform_configure();
 
 	return OK;
 }

@@ -51,79 +51,37 @@
  * Definitions
  ************************************************************************************/
 
-/* SPI bus defining tools
- *
- * For new boards we use a board_config.h to define all the SPI functionality
- *  A board provides SPI bus definitions and a set of buses that should be
- *  enumerated as well as chip selects that will be iterateable
- *
- * We will use these in macros place of the uint32_t enumeration to select a
- * specific SPI device on given SPI1 bus.
- *
- * These macros will define BUS:DEV For clarity and indexing
- *
- * The board config then defines:
- * 1) PX4_SPI_BUS_xxx Ids -the buses as a 1 based PX4_SPI_BUS_xxx as n+1 aping to SPI n
- *       where n is {1-highest SPI supported by SoC}
- * 2) PX4_SPIDEV_yyyy handles - PX4_SPIDEV_xxxxx handles using the macros below.
- * 3) PX4_xxxx_BUS_CS_GPIO - a set of chip selects that are indexed by the handles. and of set to 0 are
- *       ignored.
- * 4) PX4_xxxx_BUS_FIRST_CS and PX4_xxxxx_BUS_LAST_CS as  PX4_SPIDEV_lll for the first CS and
- *       PX4_SPIDEV_hhhh as the last CS
- *
- * Example:
- *
- * The PX4_SPI_BUS_xxx
- * #define PX4_SPI_BUS_SENSORS  1
- * #define PX4_SPI_BUS_MEMORY   2
- *
- * the PX4_SPIDEV_yyyy
- * #define PX4_SPIDEV_ICM_20689      PX4_MK_SPI_SEL(PX4_SPI_BUS_SENSORS,0)
- * #define PX4_SPIDEV_ICM_20602      PX4_MK_SPI_SEL(PX4_SPI_BUS_SENSORS,1)
- * #define PX4_SPIDEV_BMI055_GYRO    PX4_MK_SPI_SEL(PX4_SPI_BUS_SENSORS,2)
- *
- * The PX4_xxxx_BUS_CS_GPIO
- * #define PX4_SENSOR_BUS_CS_GPIO    {GPIO_SPI_CS_ICM20689, GPIO_SPI_CS_ICM20602, GPIO_SPI_CS_BMI055_GYR,...
- *
- * The PX4_xxxx_BUS_FIRST_CS and PX4_xxxxx_BUS_LAST_CS
- * #define PX4_SENSORS_BUS_FIRST_CS  PX4_SPIDEV_ICM_20689
- * #define PX4_SENSORS_BUS_LAST_CS   PX4_SPIDEV_BMI055_ACCEL
- *
- *
- */
-#define PX4_SPIDEV_ID(type, index)  ((((type) & 0xffff) << 16) | ((index) & 0xffff))
-
-#define PX4_SPI_DEVICE_ID         (1 << 12)
-#define PX4_MK_SPI_SEL(b,d)       PX4_SPIDEV_ID(PX4_SPI_DEVICE_ID, ((((b) & 0xff) << 8) | ((d) & 0xff)))
-#define PX4_SPI_BUS_ID(devid)     (((devid) >> 8) & 0xff)
-#define PX4_SPI_DEV_ID(devid)     ((devid) & 0xff)
-#define PX4_CHECK_ID(devid)       ((devid) & PX4_SPI_DEVICE_ID)
-
 /* I2C PX4 clock configuration
  *
- * A board may override BOARD_NUMBER_I2C_BUSES and BOARD_I2C_BUS_CLOCK_INIT
- * simply by defining the #defines.
- *
- * If none are provided the default number of I2C busses  will be taken from
- * the px4 micro hal and the init will be from the legacy values of 100K.
+ * A board may override BOARD_I2C_BUS_CLOCK_INIT simply by defining the #defines.
  */
-#if !defined(BOARD_NUMBER_I2C_BUSES)
-# define BOARD_NUMBER_I2C_BUSES PX4_NUMBER_I2C_BUSES
-#endif
 
-#if !defined(BOARD_I2C_BUS_CLOCK_INIT)
-#  if (BOARD_NUMBER_I2C_BUSES) == 1
-#    define BOARD_I2C_BUS_CLOCK_INIT {100000}
-#  elif (BOARD_NUMBER_I2C_BUSES) == 2
-#    define BOARD_I2C_BUS_CLOCK_INIT {100000, 100000}
-#  elif (BOARD_NUMBER_I2C_BUSES) == 3
-#    define BOARD_I2C_BUS_CLOCK_INIT {100000, 100000, 100000}
-#  elif (BOARD_NUMBER_I2C_BUSES) == 4
-#    define BOARD_I2C_BUS_CLOCK_INIT {100000, 100000, 100000, 100000}
+#if defined(BOARD_I2C_BUS_CLOCK_INIT)
+#  define PX4_I2C_BUS_CLOCK_INIT BOARD_I2C_BUS_CLOCK_INIT
+#else
+#  if (PX4_NUMBER_I2C_BUSES) == 1
+#    define PX4_I2C_BUS_CLOCK_INIT {100000}
+#  elif (PX4_NUMBER_I2C_BUSES) == 2
+#    define PX4_I2C_BUS_CLOCK_INIT {100000, 100000}
+#  elif (PX4_NUMBER_I2C_BUSES) == 3
+#    define PX4_I2C_BUS_CLOCK_INIT {100000, 100000, 100000}
+#  elif (PX4_NUMBER_I2C_BUSES) == 4
+#    define PX4_I2C_BUS_CLOCK_INIT {100000, 100000, 100000, 100000}
 #  else
-#    error BOARD_NUMBER_I2C_BUSES not supported
+#    error PX4_NUMBER_I2C_BUSES not supported
 #  endif
 #endif
+
+#ifdef BOARD_SPI_BUS_MAX_BUS_ITEMS
+#define SPI_BUS_MAX_BUS_ITEMS BOARD_SPI_BUS_MAX_BUS_ITEMS
+#else
+#define SPI_BUS_MAX_BUS_ITEMS 6
+#endif
+
+#ifndef BOARD_NUM_SPI_CFG_HW_VERSIONS
+#define BOARD_NUM_SPI_CFG_HW_VERSIONS 1
+#endif
+
 /* ADC defining tools
  * We want to normalize the V5 Sensing to V = (adc_dn) * ADC_V5_V_FULL_SCALE/(2 ^ ADC_BITS) * ADC_V5_SCALE)
  */
@@ -145,6 +103,14 @@
 #endif
 #if !defined(ADC_3V3_SCALE)
 #define ADC_3V3_SCALE                    (2.0f) // The scale factor defined by HW's resistive divider (Rt+Rb)/ Rb
+#endif
+
+#ifndef BOARD_ADC_POS_REF_V
+#define BOARD_ADC_POS_REF_V              (3.3f) // Default reference voltage for every channels
+#endif
+
+#if !defined(ADC_DP_V_DIV)						// Analog differential pressure (analog airspeed sensor)
+#define ADC_DP_V_DIV                    (2.0f)	// The scale factor defined by HW's resistive divider (Rt+Rb)/ Rb
 #endif
 
 /* Provide define for Bricks and Battery */
@@ -183,7 +149,7 @@
 #    define BOARD_BATT_V_LIST       {ADC_BATTERY1_VOLTAGE_CHANNEL, ADC_BATTERY2_VOLTAGE_CHANNEL}
 #    define BOARD_BATT_I_LIST       {ADC_BATTERY1_CURRENT_CHANNEL, ADC_BATTERY2_CURRENT_CHANNEL}
 #  endif
-#define BOARD_BRICK_VALID_LIST  {BOARD_ADC_BRICK1_VALID, BOARD_ADC_BRICK2_VALID}
+#  define BOARD_BRICK_VALID_LIST  {BOARD_ADC_BRICK1_VALID, BOARD_ADC_BRICK2_VALID}
 #elif BOARD_NUMBER_BRICKS == 3
 #  define BOARD_BATT_V_LIST       {ADC_BATTERY1_VOLTAGE_CHANNEL, ADC_BATTERY2_VOLTAGE_CHANNEL, ADC_BATTERY3_VOLTAGE_CHANNEL}
 #  define BOARD_BATT_I_LIST       {ADC_BATTERY1_CURRENT_CHANNEL, ADC_BATTERY2_CURRENT_CHANNEL, ADC_BATTERY3_CURRENT_CHANNEL}
@@ -208,7 +174,19 @@
 /* Define the source for ADC_SCALED_V3V3_SENSORS_SENSE */
 
 #if defined(ADC_SCALED_VDD_3V3_SENSORS_CHANNEL)
-#  define ADC_SCALED_V3V3_SENSORS_SENSE ADC_SCALED_VDD_3V3_SENSORS_CHANNEL
+#  define ADC_SCALED_V3V3_SENSORS_SENSE { ADC_SCALED_VDD_3V3_SENSORS_CHANNEL }
+#  define ADC_SCALED_V3V3_SENSORS_COUNT 1
+#elif defined(ADC_SCALED_VDD_3V3_SENSORS4_CHANNEL)
+#  define ADC_SCALED_V3V3_SENSORS_SENSE { ADC_SCALED_VDD_3V3_SENSORS1_CHANNEL, ADC_SCALED_VDD_3V3_SENSORS2_CHANNEL, \
+		ADC_SCALED_VDD_3V3_SENSORS3_CHANNEL, ADC_SCALED_VDD_3V3_SENSORS4_CHANNEL }
+#  define ADC_SCALED_V3V3_SENSORS_COUNT 4
+#elif defined(ADC_SCALED_VDD_3V3_SENSORS3_CHANNEL)
+#  define ADC_SCALED_V3V3_SENSORS_SENSE { ADC_SCALED_VDD_3V3_SENSORS1_CHANNEL, ADC_SCALED_VDD_3V3_SENSORS2_CHANNEL, \
+		ADC_SCALED_VDD_3V3_SENSORS3_CHANNEL }
+#  define ADC_SCALED_V3V3_SENSORS_COUNT 3
+#elif defined(ADC_SCALED_VDD_3V3_SENSORS2_CHANNEL)
+#  define ADC_SCALED_V3V3_SENSORS_SENSE { ADC_SCALED_VDD_3V3_SENSORS1_CHANNEL, ADC_SCALED_VDD_3V3_SENSORS2_CHANNEL }
+#  define ADC_SCALED_V3V3_SENSORS_COUNT 2
 #endif
 
 /* Define an overridable default of 0.0f V for batery v div
@@ -319,29 +297,11 @@
 #  endif
 #endif //
 
-/* Provide an overridable default nop
- * for BOARD_INDICATE_ARMED_STATE
- */
-
-#if !defined(BOARD_INDICATE_ARMED_STATE)
-#  define BOARD_INDICATE_ARMED_STATE(on_armed)
-#endif
-
 /************************************************************************************
  * Public Data
  ************************************************************************************/
 
-/* board reset control */
-
-typedef enum board_reset_e {
-	board_reset_normal           = 0,  /* Perform a normal reset */
-	board_reset_extended         = 1,  /* Perform an extend reset as defined by board */
-	board_reset_power_off        = 2,  /* Reset to the boot loader, signaling a power off */
-	board_reset_enter_bootloader = 3   /* Perform a reset to the boot loader */
-} board_reset_e;
-
 /* board power button state notification */
-
 typedef enum board_power_button_state_notification_e {
 	PWR_BUTTON_IDEL,                       /* Button went up without meeting shutdown button down time */
 	PWR_BUTTON_DOWN,                       /* Button went Down */
@@ -355,7 +315,6 @@ typedef enum board_power_button_state_notification_e {
 } board_power_button_state_notification_e;
 
 /* board call back signature  */
-
 typedef int (*power_button_state_notification_t)(board_power_button_state_notification_e request);
 
 /*  PX4_SOC_ARCH_ID is monotonic ordinal number assigned by PX4 to a chip
@@ -372,14 +331,19 @@ typedef enum PX4_SOC_ARCH_ID_t {
 	PX4_SOC_ARCH_ID_STM32F7        =  0x0002,
 	PX4_SOC_ARCH_ID_KINETISK66     =  0x0003,
 	PX4_SOC_ARCH_ID_SAMV7          =  0x0004,
+	PX4_SOC_ARCH_ID_NXPIMXRT1062   =  0x0005,
+
+	PX4_SOC_ARCH_ID_STM32H7        =  0x0006,
+
+	PX4_SOC_ARCH_ID_NXPS32K146     =  0x0007,
 
 	PX4_SOC_ARCH_ID_EAGLE          =  0x1001,
 	PX4_SOC_ARCH_ID_QURT           =  0x1002,
-	PX4_SOC_ARCH_ID_OCPOC          =  0x1003,
+
 	PX4_SOC_ARCH_ID_RPI            =  0x1004,
 	PX4_SOC_ARCH_ID_SIM            =  0x1005,
 	PX4_SOC_ARCH_ID_SITL           =  0x1006,
-	PX4_SOC_ARCH_ID_BEBOP          =  0x1007,
+
 	PX4_SOC_ARCH_ID_BBBLUE         =  0x1008,
 
 } PX4_SOC_ARCH_ID_t;
@@ -444,10 +408,6 @@ typedef uint8_t mfguid_t[PX4_CPU_MFGUID_BYTE_LENGTH];
  * PX4_CPU_GUID_BYTE_LENGTH-1
  */
 typedef uint8_t px4_guid_t[PX4_GUID_BYTE_LENGTH];
-
-/************************************************************************************
- * Private Functions
- ************************************************************************************/
 
 /************************************************************************************
  * Public Functions
@@ -555,7 +515,7 @@ int board_read_VBUS_state(void);
  * Name: board_on_reset
  *
  * Description:
- * Optionally provided function called on entry to board_system_reset
+ * Optionally provided function called on entry to board_reset
  * It should perform any house keeping prior to the rest.
  * For example setting PWM outputs to the off state to avoid
  * triggering a motor spin.
@@ -576,60 +536,103 @@ int board_read_VBUS_state(void);
  *
  ************************************************************************************/
 
-#if defined(BOARD_HAS_NO_RESET) || !defined(BOARD_HAS_ON_RESET)
-#  define board_on_reset(status)
-#else
+#if defined(BOARD_HAS_ON_RESET)
 __EXPORT void board_on_reset(int status);
+#endif // BOARD_HAS_ON_RESET
+
+/****************************************************************************
+ * Name: board_power_off
+ *
+ * Description:
+ *   Power off the board.  This function may or may not be supported by a
+ *   particular board architecture.
+ *
+ * Input Parameters:
+ *   status - Status information provided with the reset event.  This
+ *     meaning of this status information is board-specific.  If not used by
+ *     a board, the value zero may be provided in calls to board_power_off.
+ *
+ * Returned Value:
+ *   If this function returns, then it was not possible to power-off the
+ *   board due to some constraints.  The return value int this case is a
+ *   board-specific reason for the failure to shutdown.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_BOARDCTL_POWEROFF
+int board_power_off(int status);
 #endif
 
-/************************************************************************************
+/****************************************************************************
  * Name: board_reset
  *
  * Description:
- *   All boards my optionally provide this API to reset the board
+ *   Reset board.  Support for this function is required by board-level
+ *   logic if CONFIG_BOARDCTL_RESET is selected.
  *
  * Input Parameters:
- *  status - 1 Resetting to boot loader
- *           0 Just resetting CPU
+ *   status - Status information provided with the reset event.  This
+ *            meaning of this status information is board-specific.  If not
+ *            used by a board, the value zero may be provided in calls to
+ *            board_reset().
  *
  * Returned Value:
- *   If function is supported by board it will not return.
- *   If not supported it is a noop.
+ *   If this function returns, then it was not possible to power-off the
+ *   board due to some constraints.  The return value int this case is a
+ *   board-specific reason for the failure to shutdown.
  *
- ************************************************************************************/
-#if defined(BOARD_HAS_NO_RESET)
-#  define board_system_reset(status)
-#else
-__EXPORT void board_system_reset(int status) noreturn_function;
+ ****************************************************************************/
+
+#ifdef CONFIG_BOARDCTL_RESET
+int board_reset(int status);
 #endif
 
-/************************************************************************************
- * Name: board_set_bootload_mode
+/****************************************************************************
+ * Name: board_configure_reset
  *
  * Description:
- *   All boards my optionally provide this API to enter configure the entry to
- *   boot loader mode on the next system reset.
+ *   Configures the device that maintains the state shared by the
+ *   application and boot loader. This is usually an RTC.
  *
  * Input Parameters:
- *   mode -  is an board_reset_e that controls the type of reset.
- *           board_reset_normal  Perform a normal reset
- *           board_reset_extended Perform an extend reset as defined by board
- *           board_reset_power_off Reset to the boot loader, signaling a power off
- *           board_reset_enter_bootloader  Perform a reset to the boot loader
- *
+ *   mode  - The type of reset. See reset_mode_e
  *
  * Returned Value:
- *   Zero (OK) is returned on success; a negated EINVAL value is returned if an
- *             invalid mode is requested.
+ *   0 for Success
+ *   1 if invalid argument
  *
- ************************************************************************************/
+ ****************************************************************************/
 
-#if defined(BOARD_HAS_NO_BOOTLOADER)
-#  define board_set_bootload_mode(mode)
-#else
-__EXPORT int board_set_bootload_mode(board_reset_e mode);
+#ifdef CONFIG_BOARDCTL_RESET
+
+typedef enum  reset_mode_e {
+	BOARD_RESET_MODE_CLEAR             = 0, /* Clear the mode */
+	BOARD_RESET_MODE_BOOT_TO_BL        = 1, /* Reboot and stay in the bootloader */
+	BOARD_RESET_MODE_BOOT_TO_VALID_APP = 2, /* Reboot to a valid app or stay in bootloader */
+	BOARD_RESET_MODE_CAN_BL            = 3, /* Used to pass a node ID and stay in the can bootloader */
+	BOARD_RESET_MODE_RTC_BOOT_FWOK     = 4  /* Set by a a watch dogged application after running > 30 Seconds */
+} reset_mode_e;
+
+int board_configure_reset(reset_mode_e mode, uint32_t arg);
 #endif
 
+#if defined(SUPPORT_ALT_CAN_BOOTLOADER)
+/****************************************************************************
+ * Name: board_booted_by_px4
+ *
+ * Description:
+ *   Determines if the the boot loader was PX4
+ *
+ * Input Parameters:
+ *   none
+ *
+ * Returned Value:
+ *   true if booted byt a PX4 bootloader.
+ *
+ ****************************************************************************/
+
+bool board_booted_by_px4(void);
+#endif
 /************************************************************************************
  * Name: board_query_manifest
  *
@@ -647,6 +650,9 @@ __EXPORT int board_set_bootload_mode(board_reset_e mode);
 
 typedef enum {
 	PX4_MFT_PX4IO = 0,
+	PX4_MFT_USB   = 1,
+	PX4_MFT_CAN2  = 2,
+	PX4_MFT_CAN3  = 3,
 } px4_hw_mft_item_id_t;
 
 typedef enum {
@@ -690,6 +696,35 @@ __EXPORT px4_hw_mft_item board_query_manifest(px4_hw_mft_item_id_t id);
 #  define PX4_MFT_HW_IS_OFFBOARD(ID)         (0)
 #  define PX4_MFT_HW_IS_CONNECTION_KNOWN(ID) (0)
 #  define board_query_manifest(_na)          px4_hw_mft_unsupported
+#endif
+
+/************************************************************************************
+ * Name: board_get_can_interfaces
+ *
+ * Description:
+ *   Optional returns a bit mask of the enabled can interfaces, that are
+ *   dependent on the on board CAN configuration.
+ *
+ *   In UAVCAN the number of interfaces is a compile time setting. On some HW
+ *   using the same binary, all the CAN interfaces are not present.
+ *
+ *   The default is now 3 CAN interfaces and all active, the the build will set
+ *   the actual max number of interfaces.
+ *
+ * Input Parameters:
+ *   None
+ *
+ * Returned Value:
+ *   A bit mask of the can interfaces enabled for this board.
+ *   i.e CAN1 and CAN2   0x3
+ *       CAN0 and CAN1   0x3
+ *
+ ************************************************************************************/
+
+#if defined(UAVCAN_NUM_IFACES_RUNTIME)
+__EXPORT uint16_t board_get_can_interfaces(void);
+#else
+inline uint16_t board_get_can_interfaces(void) { return 0x7; }
 #endif
 
 /************************************************************************************
@@ -977,64 +1012,7 @@ __EXPORT int board_mcu_version(char *rev, const char **revstr, const char **erra
 
 int board_register_power_state_notification_cb(power_button_state_notification_t cb);
 
-/************************************************************************************
- * Name: board_shutdown
- *
- * Description:
- *   boards may provide a function to power off the board.
- *
- * Input Parameters:
- *   None.
- * Returned Value:
- *    - If supported the function will not return.
- *      OK, or -EINVAL if unsupported.
- */
-int board_shutdown(void);
-
-#else
-static inline int board_register_power_state_notification_cb(power_button_state_notification_t cb) { return 0; }
-static inline int board_shutdown(void) { return -EINVAL; }
 #endif
-__END_DECLS
-
-/************************************************************************************
- * Name: px4_i2c_bus_external
- *
- ************************************************************************************/
-
-#if defined(BOARD_HAS_SIMPLE_HW_VERSIONING)
-
-__EXPORT bool px4_i2c_bus_external(int bus);
-
-#else
-
-#ifdef PX4_I2C_BUS_ONBOARD
-#define px4_i2c_bus_external(bus) (bus != PX4_I2C_BUS_ONBOARD)
-#else
-#define px4_i2c_bus_external(bus) true
-#endif /* PX4_I2C_BUS_ONBOARD */
-
-#endif /* BOARD_HAS_SIMPLE_HW_VERSIONING */
-
-
-/************************************************************************************
- * Name: px4_spi_bus_external
- *
- ************************************************************************************/
-
-#if defined(BOARD_HAS_SIMPLE_HW_VERSIONING)
-
-__EXPORT bool px4_spi_bus_external(int bus);
-
-#else
-
-#ifdef PX4_SPI_BUS_EXT
-#define px4_spi_bus_external(bus) (bus == PX4_SPI_BUS_EXT)
-#else
-#define px4_spi_bus_external(bus) false
-#endif /* PX4_SPI_BUS_EXT */
-
-#endif /* BOARD_HAS_SIMPLE_HW_VERSIONING */
 
 /************************************************************************************
  * Name: board_has_bus
@@ -1042,6 +1020,7 @@ __EXPORT bool px4_spi_bus_external(int bus);
  ************************************************************************************/
 
 enum board_bus_types {
+	BOARD_INVALID_BUS = 0,
 	BOARD_SPI_BUS = 1,
 	BOARD_I2C_BUS = 2
 };
@@ -1053,6 +1032,41 @@ __EXPORT bool board_has_bus(enum board_bus_types type, uint32_t bus);
 #else
 #  define board_has_bus(t, b) true
 #endif /* BOARD_HAS_BUS_MANIFEST */
+
+
+/************************************************************************************
+ * Name: board_spi_reset
+ *
+ * Description:
+ *   Reset SPI buses and devices
+ *
+ * Input Parameters:
+ *  ms                   - delay in msbetween powering off the devices and re-enabling power.
+ *
+ *  bus_mask             - bitmask to select buses - use 0xffff to select all.
+ */
+__EXPORT void board_spi_reset(int ms, int bus_mask);
+
+/************************************************************************************
+ * Name: board_control_spi_sensors_power_configgpio
+ *
+ * Description:
+ *   Initialize GPIO pins for all SPI bus power enable pins
+ */
+__EXPORT void board_control_spi_sensors_power_configgpio(void);
+
+/************************************************************************************
+ * Name: board_control_spi_sensors_power
+ *
+ * Description:
+ *   Control the power of SPI buses
+ *
+ * Input Parameters:
+ *  enable_power         - true to enable power, false to disable
+ *
+ *  bus_mask             - bitmask to select buses - use 0xffff to select all.
+ */
+__EXPORT void board_control_spi_sensors_power(bool enable_power, int bus_mask);
 
 /************************************************************************************
  * Name: board_hardfault_init
@@ -1078,3 +1092,5 @@ __EXPORT bool board_has_bus(enum board_bus_types type, uint32_t bus);
  *               32000 resets.
  */
 int board_hardfault_init(int display_to_console, bool allow_prompt);
+
+__END_DECLS

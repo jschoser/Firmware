@@ -34,36 +34,26 @@
 /**
  * @file bmp388.cpp
  *
- * Driver for the BMP388 barometric pressure sensor connected via I2C
- * (SPI still TODO/test).
+ * Driver for the BMP388 barometric pressure sensor connected via SPI or I2C
  *
  * Refer to: https://github.com/BoschSensortec/BMP3-Sensor-API
  */
 
 #include "bmp388.h"
 
-BMP388::BMP388(IBMP388 *interface, const char *path) :
-	CDev(path),
-	ScheduledWorkItem(MODULE_NAME, px4::device_bus_to_wq(interface->get_device_id())),
-	_px4_baro(interface->get_device_id(), ORB_PRIO_DEFAULT),
+BMP388::BMP388(I2CSPIBusOption bus_option, int bus, IBMP388 *interface) :
+	I2CSPIDriver(MODULE_NAME, px4::device_bus_to_wq(interface->get_device_id()), bus_option, bus,
+		     interface->get_device_address()),
+	_px4_baro(interface->get_device_id()),
 	_interface(interface),
-	_osr_t(BMP3_OVERSAMPLING_2X),
-	_osr_p(BMP3_OVERSAMPLING_16X),
-	_odr(BMP3_ODR_50_HZ),
-	_iir_coef(BMP3_IIR_FILTER_DISABLE),
-	_sample_perf(perf_alloc(PC_ELAPSED, "bmp388: read")),
-	_measure_perf(perf_alloc(PC_ELAPSED, "bmp388: measure")),
-	_comms_errors(perf_alloc(PC_COUNT, "bmp388: comms errors")),
-	_collect_phase(false)
+	_sample_perf(perf_alloc(PC_ELAPSED, MODULE_NAME": read")),
+	_measure_perf(perf_alloc(PC_ELAPSED, MODULE_NAME": measure")),
+	_comms_errors(perf_alloc(PC_COUNT, MODULE_NAME": comms errors"))
 {
-	_px4_baro.set_device_type(DRV_DEVTYPE_BMP388);
 }
 
 BMP388::~BMP388()
 {
-	/* make sure we are truly inactive */
-	stop();
-
 	/* free perf counters */
 	perf_free(_sample_perf);
 	perf_free(_measure_perf);
@@ -75,15 +65,8 @@ BMP388::~BMP388()
 int
 BMP388::init()
 {
-	int ret = CDev::init();
-
-	if (ret != OK) {
-		PX4_ERR("CDev init failed");
-		return ret;
-	}
-
 	if (!soft_reset()) {
-		PX4_WARN("failed to reset baro during init");
+		PX4_DEBUG("failed to reset baro during init");
 		return -EIO;
 	}
 
@@ -109,32 +92,19 @@ BMP388::init()
 		return -EIO;
 	}
 
-	/* do a first measurement cycle to populate reports with valid data */
-	if (measure()) {
-		return -EIO;
-	}
-
-	/* sleep this first time around */
-	px4_usleep(_measure_interval);
-
-	if (collect()) {
-		return -EIO;
-	}
-
 	start();
 
 	return OK;
 }
 
 void
-BMP388::print_info()
+BMP388::print_status()
 {
+	I2CSPIDriverBase::print_status();
 	perf_print_counter(_sample_perf);
 	perf_print_counter(_measure_perf);
 	perf_print_counter(_comms_errors);
 	printf("measurement interval:  %u us \n", _measure_interval);
-
-	_px4_baro.print_status();
 }
 
 void
@@ -142,23 +112,12 @@ BMP388::start()
 {
 	_collect_phase = false;
 
-	/* make sure we are stopped first */
-	stop();
-
-	ScheduleOnInterval(_measure_interval, 1000);
+	// wait a bit longer for the first measurement, as otherwise the first readout might fail
+	ScheduleOnInterval(_measure_interval, _measure_interval * 3);
 }
 
 void
-BMP388::stop()
-{
-	ScheduleClear();
-}
-
-/*
- * ScheduledWorkItem override
- */
-void
-BMP388::Run()
+BMP388::RunImpl()
 {
 	if (_collect_phase) {
 		collect();
@@ -176,7 +135,7 @@ BMP388::measure()
 
 	/* start measurement */
 	if (!set_op_mode(BMP3_FORCED_MODE)) {
-		PX4_WARN("failed to set operating mode");
+		PX4_DEBUG("failed to set operating mode");
 		perf_count(_comms_errors);
 		perf_cancel(_measure_perf);
 		return -EIO;
@@ -210,11 +169,11 @@ BMP388::collect()
 	_px4_baro.set_error_count(perf_event_count(_comms_errors));
 
 	float temperature = (float)(data.temperature / 100.0f);
-	float pressure = (float)(data.pressure / 100.0f); // to hecto Pascal
+	float pressure = (float)(data.pressure / 100.0f); // to Pascal
 	pressure = pressure / 100.0f; // to mbar
 
 	_px4_baro.set_temperature(temperature);
-	_px4_baro.update(timestamp_sample, pressure); // to mbar
+	_px4_baro.update(timestamp_sample, pressure);
 
 	perf_end(_sample_perf);
 
@@ -286,15 +245,13 @@ static int8_t cal_crc(uint8_t seed, uint8_t data)
 bool
 BMP388::validate_trimming_param()
 {
-	bool    result = false;
 	uint8_t crc = 0xFF;
 	uint8_t stored_crc;
-	uint8_t trim_param[BMP3_CALIB_DATA_LEN];
-	uint8_t i;
+	uint8_t *trim_param = (uint8_t *)_cal;
 
-	memcpy(&trim_param, _cal, BMP3_CALIB_DATA_LEN);
+	static_assert(BMP3_CALIB_DATA_LEN <= sizeof(*_cal), "unexpected struct size");
 
-	for (i = 0; i < BMP3_CALIB_DATA_LEN; i++) {
+	for (int i = 0; i < BMP3_CALIB_DATA_LEN; i++) {
 		crc = (uint8_t)cal_crc(crc, trim_param[i]);
 	}
 
@@ -302,15 +259,11 @@ BMP388::validate_trimming_param()
 
 	stored_crc = _interface->get_reg(BMP3_TRIM_CRC_DATA_ADDR);
 
-	if (stored_crc == crc) {
-		result = true;
-	}
-
-	return result;
+	return stored_crc == crc;
 }
 
 uint32_t
-BMP388::get_measurement_time(uint8_t osr_t, uint8_t osr_p)
+BMP388::get_measurement_time()
 {
 	/*
 	  From BST-BMP388-DS001.pdf, page 25, table 21
@@ -371,7 +324,7 @@ BMP388::get_measurement_time(uint8_t osr_t, uint8_t osr_p)
 bool
 BMP388::set_sensor_settings()
 {
-	_measure_interval = get_measurement_time(_osr_t, _osr_p);
+	_measure_interval = get_measurement_time();
 
 	if (_measure_interval == 0) {
 		PX4_WARN("unsupported oversampling selected");
@@ -390,10 +343,10 @@ BMP388::set_sensor_settings()
 		return false;
 	}
 
-	/* Select the and over sampling settings for pressure and temperature */
+	/* Select the over sampling settings for pressure and temperature */
 	uint8_t osr_ctl_reg = 0;
-	osr_ctl_reg = BMP3_SET_BITS_POS_0(osr_ctl_reg, BMP3_PRESS_OS, _osr_p);
-	osr_ctl_reg = BMP3_SET_BITS(osr_ctl_reg, BMP3_TEMP_OS, _osr_t);
+	osr_ctl_reg = BMP3_SET_BITS_POS_0(osr_ctl_reg, BMP3_PRESS_OS, osr_p);
+	osr_ctl_reg = BMP3_SET_BITS(osr_ctl_reg, BMP3_TEMP_OS, osr_t);
 
 	ret = _interface->set_reg(osr_ctl_reg, BMP3_OSR_ADDR);
 
@@ -404,7 +357,7 @@ BMP388::set_sensor_settings()
 
 	/* Using 'forced mode' so this is not required but here for future use possibly */
 	uint8_t odr_ctl_reg = 0;
-	odr_ctl_reg = BMP3_SET_BITS_POS_0(odr_ctl_reg, BMP3_ODR, _odr);
+	odr_ctl_reg = BMP3_SET_BITS_POS_0(odr_ctl_reg, BMP3_ODR, odr);
 
 	ret = _interface->set_reg(odr_ctl_reg, BMP3_ODR_ADDR);
 
@@ -414,7 +367,7 @@ BMP388::set_sensor_settings()
 	}
 
 	uint8_t iir_ctl_reg = 0;
-	iir_ctl_reg = BMP3_SET_BITS(iir_ctl_reg, BMP3_IIR_FILTER, _iir_coef);
+	iir_ctl_reg = BMP3_SET_BITS(iir_ctl_reg, BMP3_IIR_FILTER, iir_coef);
 	ret = _interface->set_reg(iir_ctl_reg, BMP3_IIR_ADDR);
 
 	if (ret != OK) {
@@ -615,13 +568,20 @@ BMP388::get_sensor_data(uint8_t sensor_comp, struct bmp3_data *comp_data)
 	bool result = false;
 	int8_t rslt;
 
-	uint8_t reg_data[BMP3_P_T_DATA_LEN] = { 0 };
-	struct bmp3_uncomp_data uncomp_data = { 0 };
+	uint8_t reg_data[BMP3_P_T_DATA_LEN];
+	struct bmp3_uncomp_data uncomp_data;
 
-	rslt = _interface->get_reg_buf(BMP3_DATA_ADDR, reg_data, BMP3_P_T_DATA_LEN);
+	rslt = _interface->get_reg_buf(BMP3_SENS_STATUS_REG_ADDR, reg_data, BMP3_P_T_DATA_LEN);
 
 	if (rslt == OK) {
-		parse_sensor_data(reg_data, &uncomp_data);
+		uint8_t status = reg_data[0];
+
+		// check if data ready (both temp and pressure)
+		if ((status & (3 << 5)) != (3 << 5)) {
+			return false;
+		}
+
+		parse_sensor_data(reg_data + 1, &uncomp_data);
 		result = compensate_data(sensor_comp, &uncomp_data, comp_data);
 	}
 
