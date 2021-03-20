@@ -780,15 +780,16 @@ VolzOutput::pwm_ioctl(file *filp, int cmd, unsigned long arg)
         *(unsigned *)arg = 5;
 		break;
 
-	case PWM_SERVO_SET_COUNT: {
-			/* change the number of outputs that are enabled for
-			 * PWM. This is used to change the split between GPIO
-			 * and PWM under control of the flight config
-			 * parameters.
-			 * TODO: Implement this if you want
-			 */
-			break;
-		}
+		// seems to cause issues in the newest version of PX4
+//	case PWM_SERVO_SET_COUNT: {
+//			/* change the number of outputs that are enabled for
+//			 * PWM. This is used to change the split between GPIO
+//			 * and PWM under control of the flight config
+//			 * parameters.
+//			 * TODO: Implement this if you want
+//			 */
+//			break;
+//		}
 
 	case PWM_SERVO_SET_MODE: {
             // TODO: Implement this if you want
@@ -941,7 +942,7 @@ occur in the mixer file.
 
     PRINT_MODULE_USAGE_COMMAND_DESCR("pos_cmd", "Command actuator to given position");
     PRINT_MODULE_USAGE_PARAM_INT('i', 0x1F, 0x01, 0x1E, "Actuator ID", true);
-    PRINT_MODULE_USAGE_PARAM_FLOAT('p', DISARMED_VALUE, MIN_VALUE, MAX_VALUE, "Position", false);
+    PRINT_MODULE_USAGE_PARAM_INT('p', 0, 1, 1001, "Position", false);
 
     PRINT_MODULE_USAGE_COMMAND_DESCR("set_id", "Set new actuator ID");
     PRINT_MODULE_USAGE_PARAM_INT('i', 0x1F, 0x01, 0x1E, "Old actuator ID", true);
