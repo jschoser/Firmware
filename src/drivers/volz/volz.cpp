@@ -62,10 +62,19 @@
 #include <uORB/topics/esc_status.h>
 #include <termios.h>
 
+/***
+ * Driver for the Volz DA22 servo using RS485. Position commands with 6 bytes each are written to the TELEM2 UART port.
+ * The module also supports multiple command-line argument that can be used to assign servo IDs, failsafe timeout, ...
+ * This version of the driver also contains some methods to retrieve the response signal of the servos, and recognise
+ * if they correspond to expected values. However, these methods are currently not being called anywhere since testing
+ * for sending commands still has to succeed.
+ * A lot of inspiration for the structure of this program was taken from the DShot driver.
+ */
 
-using namespace time_literals; // TODO: what does this do?
 
-#if !defined(BOARD_HAS_PWM) // TODO: what does this do?
+using namespace time_literals; // TODO: necessary?
+
+#if !defined(BOARD_HAS_PWM) // TODO: necessary?
 #  error "board_config.h needs to define BOARD_HAS_PWM"
 #endif
 
@@ -73,8 +82,8 @@ using namespace time_literals; // TODO: what does this do?
 class VolzOutput : public cdev::CDev, public ModuleBase<VolzOutput>, public OutputModuleInterface
 {
 public:
-    static constexpr int VOLZ_ID_UNKNOWN = 0x1F;
-    static constexpr int VOLZ_CMD_LEN = 6;
+    static constexpr int VOLZ_ID_UNKNOWN = 0x1F;  // ID to be used to send a command to all connected servos
+    static constexpr int VOLZ_CMD_LEN = 6;  // each command contains six bytes
 
 	VolzOutput();
 	virtual ~VolzOutput();
@@ -101,6 +110,7 @@ public:
 
 	void mixerChanged() override;
 
+	// IDs to characterise the commands and responses for different purposes
 	typedef enum{
         POS_CMD = 0xDD,
         SET_ACTUATOR_ID = 0xAA,
@@ -118,8 +128,6 @@ public:
     } volz_response_t;
 
     struct Command {
-        // TODO: make a method to set the first four bytes that automatically generates the checksum
-
         hrt_abstime last_send_time{0};
 
         uint8_t cmd[VOLZ_CMD_LEN];  // command bytes
@@ -144,10 +152,9 @@ public:
     };
 
 	/**
-	 * Send a volz command to one or all motors
+	 * Send a Volz command to one or all servos
 	 * This is expected to be called from another thread.
-	 * @param num_repetitions number of times to repeat, set at least to 1
-	 * @param actuator_id id or 0x1F for all
+	 * @param command is the command to be sent
 	 * @return 0 on success, <0 error otherwise
 	 */
 	int sendCommandThreadSafe(Command command);
@@ -161,26 +168,24 @@ private:
     static constexpr uint16_t MAX_VALUE = MIN_VALUE + 1000;
     uint16_t _idle_value[MAX_ACTUATORS] {};
 
-    static constexpr int VOLZ_POS_MIN = 0x0060;
-    static constexpr int VOLZ_POS_CENTER = 0x1000;
+    static constexpr int VOLZ_POS_MIN = 0x0060;  // value that corresponds to "minimum" position in Volz protocol
+    static constexpr int VOLZ_POS_CENTER = 0x1000;  // value that corresponds to center position in Volz protocol
 
-    static constexpr int RESP_QUEUE_LEN = MAX_ACTUATORS + 1;
+    static constexpr int RESP_QUEUE_LEN = MAX_ACTUATORS + 1;  // we store expected responses for each servo and an additional channel (for unknown ID)
 
 	int _fd{-1};
-	const char *_port = "/dev/ttyS2";
+	const char *_port = "/dev/ttyS2";  // TELEM2 port
 
 	MixingOutput _mixing_output{DIRECT_PWM_OUTPUT_CHANNELS, *this, MixingOutput::SchedulingPolicy::Auto, false, false};
-    int update_rate{50};
+    int update_rate{50};  // limit update rate, which seems to reduce the times the driver crashes
 
 	uORB::Subscription _param_sub{ORB_ID(parameter_update)};
-    uORB::Subscription _actuator_controls_sub{ORB_ID(actuator_controls_0)};
 
-    actuator_controls_s _controls{};
-
+	// fields used to send command-line commands thread-safe
     Command _current_command;
     px4::atomic<Command *> _new_command{nullptr};
 
-	Command sent_commands[RESP_QUEUE_LEN];
+	Command sent_commands[RESP_QUEUE_LEN];  // store sent commands so that incoming responses can be related to them
 	bool waiting_for_resp[RESP_QUEUE_LEN] = {false};
 
     uint8_t _resp_buffer[VOLZ_CMD_LEN];  // TODO: Should this really be kept between loops or emptied every time?
@@ -193,21 +198,25 @@ private:
 
 	void		update_params();
 
-    int			pwm_ioctl(file *filp, int cmd, unsigned long arg);
+    int			pwm_ioctl(file *filp, int cmd, unsigned long arg);  // taken from dshot.cpp
     int		capture_ioctl(file *filp, int cmd, unsigned long arg);
 
+    // helper functions to generate Volz commands
     static int generate_crc(int cmd, int actuator_id, int arg_1, int arg_2);
     static int highbyte(int value);
     static int lowbyte(int value);
 
+    // functions to generate Volz commands
     static Command pos_cmd(int pos, int id = VOLZ_ID_UNKNOWN, int num_repetitions = 1);
     static Command set_actuator_id(int new_id, int id = VOLZ_ID_UNKNOWN, int num_repetitions = 1);
     static Command set_failsafe_timeout(float timeout, int id = VOLZ_ID_UNKNOWN, int num_repetitions = 1);
     static Command set_current_pos_as_failsafe(int id = VOLZ_ID_UNKNOWN, int num_repetitions = 1);
     static Command set_current_pos_as_zero(int id = VOLZ_ID_UNKNOWN, int num_repetitions = 1);
 
+    // write a command to the open port
     bool write_command(Command command);
 
+    // check for response signals. Currently never called
     bool update_telemetry();
 
 	VolzOutput(const VolzOutput &) = delete;
@@ -260,8 +269,9 @@ VolzOutput::init()
 		return ret;
 	}
 
+	// TODO: what does this do?
 	/* try to claim the generic PWM output device node as well - it's OK if we fail at this */
-	_class_instance = register_class_devname(PWM_OUTPUT_BASE_DEVICE_PATH); // TODO: what does this do?
+	_class_instance = register_class_devname(PWM_OUTPUT_BASE_DEVICE_PATH);
 
 	if (_class_instance == CLASS_DEVICE_PRIMARY) {
 		/* lets not be too verbose */
@@ -274,7 +284,7 @@ VolzOutput::init()
 	// Getting initial parameter values
 	update_params();
 
-	// TODO: Find out how this code works (taken from TFMINI.cpp). Check out dshot's telemetry.cpp
+	// TODO: Find out how this code works and what the flags mean (taken from TFMINI.cpp). Check out dshot's telemetry.cpp
 
     do { // create a scope to handle exit conditions using break
         // open fd
@@ -337,9 +347,6 @@ VolzOutput::init()
         }
     } while (0);
 
-//    PX4_INFO("sending test command");
-//    write_command(pos_cmd(0.5, VOLZ_ID_UNKNOWN)); // TODO: Remove before deployment
-
     // close the fd
     ::close(_fd);
     _fd = -1;
@@ -397,41 +404,35 @@ void VolzOutput::mixerChanged()
 bool VolzOutput::updateOutputs(bool stop_motors, uint16_t outputs[MAX_ACTUATORS],
 				unsigned num_outputs, unsigned num_control_groups_updated)
 {
-    // PX4_INFO("updateOutputs");
     if (_fd < 0) {
         return false;
     }
 
-//    PX4_INFO("updateOutputs called with stop_motors = %i, %i as first control input, num_outputs = %i and "
-//             "num_control_groups_updated = %i", stop_motors, (int)outputs[0], num_outputs, num_control_groups_updated);
-
 	if (!_mixing_output.armed().prearmed && !_mixing_output.armed().armed) {
-        // PX4_INFO("not prearmed");
-		// when motors are stopped we check if we have other commands to send
 		for (unsigned i = 0; i < num_outputs; i++) {
             Command command = pos_cmd(_idle_value[i], i + 1);  // Set actuators to idle positions
             write_command(command);
 		}
 
-        // when motors are stopped we check if we have other commands to send
+        // check if we have other commands to send
         if (_current_command.valid()) {
             write_command(_current_command);
         }
 
 	} else {
-        // PX4_INFO("sending commands");
 		for (unsigned i = 0; i < num_outputs; i++) {
 		    Command command;
 			if (outputs[i] == DISARMED_VALUE) {
-			    command = pos_cmd(_idle_value[i], i + 1);
+			    command = pos_cmd(_idle_value[i], i + 1); // set disarmed servos to idle position
 
 			} else {
-                command = pos_cmd(outputs[i], i + 1);
+
+                command = pos_cmd(outputs[i], i + 1); // set non-disarmed servos to their correct positions
 			}
-            write_command(command);
+            write_command(command);  // write the command to the port
 		}
 
-		// clear commands when motors are running
+		// clear CLI commands when motors are running
 		_current_command.clear();
 	}
 
@@ -446,6 +447,7 @@ int VolzOutput::lowbyte(int value) {
     return value & 0xff;
 }
 
+// generate command checksum for Volz protocol
 int VolzOutput::generate_crc(int cmd, int actuator_id, int arg_1, int arg_2)	{
     unsigned short int crc=0xFFFF; // init value of result
     int command[4]={cmd,actuator_id,arg_1,arg_2}; // command, ID, argument1, argument 2
@@ -631,17 +633,18 @@ bool VolzOutput::write_command(Command command) {
         idx = RESP_QUEUE_LEN - 1;
     }
 
+    // currently not used
 //    if (waiting_for_resp[idx]) {
 //        PX4_ERR("Received no response to command on servo %d before sending new command", idx);
 //    }
-
-    sent_commands[idx] = command;
-    waiting_for_resp[idx] = true;
+//
+//    sent_commands[idx] = command;
+//    waiting_for_resp[idx] = true;
 
     return true;
 }
 
-// inspired by dshot's telemetry.cpp
+// inspired by dshot's telemetry.cpp. Currently not used
 bool VolzOutput::update_telemetry() {
     if (_fd < 0) {
         return false;
@@ -690,10 +693,7 @@ VolzOutput::Run()
     // fds initialized?
     if (_fd < 0) {
         // open fd
-        _fd = ::open(_port, O_RDWR | O_NOCTTY); // TODO: Check if flags are right
-
-        // TODO: Remove before deployment
-        // write_command(pos_cmd(1));
+        _fd = ::open(_port, O_RDWR | O_NOCTTY | O_NONBLOCK); // TODO: Check if flags are right
     }
 
 	if (should_exit()) {
@@ -712,20 +712,9 @@ VolzOutput::Run()
 
 	// update_telemetry();
 
-	// TODO: Check for old commands that have not been responded to yet
-
-	// TODO: Should this be used somehow?
-	/* update output status if armed or if mixer is loaded */
-	// bool outputs_on = _mixing_output.armed().armed || _mixing_output.mixers();
-
 	if (_param_sub.updated()) {
 		update_params();
 	}
-
-//	if (_actuator_controls_sub.update(&_controls)) {
-//        PX4_INFO("Actuator controls have been updated: %f", (double)_controls.control[_controls.INDEX_ROLL]);
-//	    write_command(pos_cmd(_controls.control[_controls.INDEX_ROLL], VOLZ_ID_UNKNOWN));
-//	}
 
 	// new command?
 	// TODO: Make this if statement work somehow
