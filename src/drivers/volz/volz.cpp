@@ -940,26 +940,26 @@ occur in the mixer file.
 	PRINT_MODULE_USAGE_COMMAND_DESCR("start", "Start the task");
 
     PRINT_MODULE_USAGE_COMMAND_DESCR("pos_cmd", "Command actuator to given position");
-    PRINT_MODULE_USAGE_PARAM_INT('i', VOLZ_ID_UNKNOWN, 0x01, 0x1E, "Actuator ID", true);
+    PRINT_MODULE_USAGE_PARAM_INT('i', 0x1F, 0x01, 0x1E, "Actuator ID", true);
     PRINT_MODULE_USAGE_PARAM_FLOAT('p', DISARMED_VALUE, MIN_VALUE, MAX_VALUE, "Position", false);
 
     PRINT_MODULE_USAGE_COMMAND_DESCR("set_id", "Set new actuator ID");
-    PRINT_MODULE_USAGE_PARAM_INT('i', VOLZ_ID_UNKNOWN, 0x01, 0x1E, "Old actuator ID", true);
-    PRINT_MODULE_USAGE_PARAM_INT('n', VOLZ_ID_UNKNOWN, 0x01, 0x1E, "New actuator ID", false);
+    PRINT_MODULE_USAGE_PARAM_INT('i', 0x1F, 0x01, 0x1E, "Old actuator ID", true);
+    PRINT_MODULE_USAGE_PARAM_INT('n', 0x1F, 0x01, 0x1E, "New actuator ID", false);
 
     PRINT_MODULE_USAGE_COMMAND_DESCR("set_fs_timeout", "Set amount of seconds after which the actuator "
                                                        "goes into failsafe position, if it does not receive a valid"
                                                        "command");
-    PRINT_MODULE_USAGE_PARAM_INT('i', VOLZ_ID_UNKNOWN, 0x01, 0x1E, "Actuator ID", true);
+    PRINT_MODULE_USAGE_PARAM_INT('i', 0x1F, 0x01, 0x1E, "Actuator ID", true);
     PRINT_MODULE_USAGE_PARAM_FLOAT('t', -1, 0x00, 0x7F, "Timeout (s)", false);
 
     PRINT_MODULE_USAGE_COMMAND_DESCR("set_pos_as_fs", "Set current actuator position as new failsafe "
                                                       "positon");
-    PRINT_MODULE_USAGE_PARAM_INT('i', VOLZ_ID_UNKNOWN, 0x01, 0x1E, "Actuator ID", true);
+    PRINT_MODULE_USAGE_PARAM_INT('i', 0x1F, 0x01, 0x1E, "Actuator ID", true);
 
     PRINT_MODULE_USAGE_COMMAND_DESCR("set_pos_as_zero", "Set current actuator position as new "
                                                         "mid-position (zero)");
-    PRINT_MODULE_USAGE_PARAM_INT('i', VOLZ_ID_UNKNOWN, 0x01, 0x1E, "Actuator ID", true);
+    PRINT_MODULE_USAGE_PARAM_INT('i', 0x1F, 0x01, 0x1E, "Actuator ID", true);
 
 	PRINT_MODULE_USAGE_DEFAULT_COMMANDS();
 
